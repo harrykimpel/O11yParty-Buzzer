@@ -1,0 +1,59 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+
+<PageTitle>Home</PageTitle>
+
+<main class="buzzer-shell">
+	<h1>O11y-Party Buzzer</h1>
+	<p>Enter your team name and hit the buzzer to answer the question.</p>
+
+	<label for="teamName">Team Name</label>
+	<input id="teamName" class="team-input" maxlength="80" @bind="teamName" @bind:event="oninput"
+		   placeholder="Team Rocket" />
+
+	<button class="buzzer-button" @onclick="BuzzAsync" disabled="@isSubmitting">
+		@(isSubmitting ? "Buzzing..." : "BUZZ")
+	</button>
+
+	@if (!string.IsNullOrWhiteSpace(statusMessage))
+	{
+		<p class="status @statusCssClass">@statusMessage</p>
+	}
+</main>
+
+@code {
+	private string teamName = string.Empty;
+	private string statusMessage = string.Empty;
+	private string statusCssClass = "ok";
+	private bool isSubmitting;
+
+	private async Task BuzzAsync()
+	{
+		var normalizedTeamName = teamName.Trim();
+		if (string.IsNullOrWhiteSpace(normalizedTeamName))
+		{
+			statusCssClass = "error";
+			statusMessage = "Enter a team name before buzzing.";
+			return;
+		}
+
+		try
+		{
+			isSubmitting = true;
+			statusMessage = string.Empty;
+			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
+			statusCssClass = "ok";
+			statusMessage = $"Buzz received for {normalizedTeamName}.";
+		}
+		catch (Exception ex)
+		{
+			statusCssClass = "error";
+			statusMessage = $"Could not send buzz event: {ex.Message}";
+		}
+		finally
+		{
+			isSubmitting = false;
+		}
+	}
+}
