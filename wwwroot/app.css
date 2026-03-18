@@ -5,6 +5,11 @@
     --nr-green-dark: #13b56a;
     --nr-green-soft: #d6fbea;
     --nr-bg: #f7fffb;
+    --nr-surface: #ffffff;
+    --nr-border: #d8e2ec;
+    --nr-danger: #b01919;
+    --nr-danger-soft: #c21d1d;
+    --nr-focus-ring: color-mix(in srgb, var(--nr-green) 65%, #ffffff 35%);
 }
 
 html,
@@ -12,6 +17,51 @@ body {
     font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
     background: linear-gradient(160deg, #ffffff 0%, var(--nr-bg) 100%);
     color: var(--nr-ink);
+}
+
+html,
+body,
+.buzzer-shell,
+.team-input,
+.top-row,
+.nav-item ::deep .nav-link {
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+:root[data-theme='dark'] {
+    --nr-ink: #e8f4ff;
+    --nr-ink-soft: #b7d2ea;
+    --nr-green: #3af1a0;
+    --nr-green-dark: #28c27d;
+    --nr-green-soft: #0d2f20;
+    --nr-bg: #081521;
+    --nr-surface: #0f2233;
+    --nr-border: #28435b;
+    --nr-danger: #ff8c8c;
+    --nr-danger-soft: #ff7878;
+    --nr-focus-ring: color-mix(in srgb, var(--nr-green) 46%, #ffffff 54%);
+}
+
+:root[data-theme='dark'] html,
+:root[data-theme='dark'] body {
+    color-scheme: dark;
+    background: radial-gradient(circle at 14% 8%, #18314a 0%, #081521 58%, #040d16 100%);
+}
+
+:root[data-theme='dark'] .btn-primary {
+    color: #03210f;
+}
+
+:root[data-theme='dark'] .form-control,
+:root[data-theme='dark'] .form-select,
+:root[data-theme='dark'] .form-check-input {
+    background-color: #10273a;
+    color: var(--nr-ink);
+    border-color: var(--nr-border);
+}
+
+:root[data-theme='dark'] .form-control::placeholder {
+    color: color-mix(in srgb, var(--nr-ink-soft) 70%, #ffffff 30%);
 }
 
 a,
@@ -30,7 +80,15 @@ a,
 .btn-link.nav-link:focus,
 .form-control:focus,
 .form-check-input:focus {
-    box-shadow: 0 0 0 0.1rem #fff, 0 0 0 0.25rem color-mix(in srgb, var(--nr-green) 65%, #ffffff 35%);
+    box-shadow: 0 0 0 0.1rem #fff, 0 0 0 0.25rem var(--nr-focus-ring);
+}
+
+:root[data-theme='dark'] .btn:focus,
+:root[data-theme='dark'] .btn:active:focus,
+:root[data-theme='dark'] .btn-link.nav-link:focus,
+:root[data-theme='dark'] .form-control:focus,
+:root[data-theme='dark'] .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem #09131d, 0 0 0 0.25rem var(--nr-focus-ring);
 }
 
 .content {
@@ -46,11 +104,11 @@ h1:focus {
 }
 
 .invalid {
-    outline: 1px solid #c21d1d;
+    outline: 1px solid var(--nr-danger-soft);
 }
 
 .validation-message {
-    color: #b01919;
+    color: var(--nr-danger);
 }
 
 .blazor-error-boundary {
@@ -65,6 +123,10 @@ h1:focus {
 
 .darker-border-checkbox.form-check-input {
     border-color: #7c8fa3;
+}
+
+:root[data-theme='dark'] .darker-border-checkbox.form-check-input {
+    border-color: #5f7f9a;
 }
 
 .form-floating>.form-control-plaintext::placeholder,

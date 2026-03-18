@@ -4,10 +4,14 @@
     padding: 1.5rem;
     display: grid;
     gap: 1rem;
-    background: #fff;
-    border: 1px solid color-mix(in srgb, var(--nr-green) 30%, #d8e2ec 70%);
+    background: var(--nr-surface);
+    border: 1px solid color-mix(in srgb, var(--nr-green) 30%, var(--nr-border) 70%);
     border-radius: 1rem;
     box-shadow: 0 16px 42px rgba(10, 43, 78, 0.08);
+}
+
+:root[data-theme='dark'] .buzzer-shell {
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.36);
 }
 
 .buzzer-shell h1 {
@@ -22,7 +26,8 @@
 .team-input {
     width: 100%;
     min-height: 2.75rem;
-    border: 1px solid #a5b8cb;
+    border: 1px solid color-mix(in srgb, var(--nr-border) 78%, #ffffff 22%);
+    background: color-mix(in srgb, var(--nr-surface) 93%, #ffffff 7%);
     border-radius: 0.6rem;
     padding: 0.5rem 0.75rem;
     font-size: 1.1rem;
@@ -32,7 +37,15 @@
 .team-input:focus {
     outline: none;
     border-color: var(--nr-green-dark);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--nr-green) 28%, #ffffff 72%);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--nr-green) 30%, #ffffff 70%);
+}
+
+:root[data-theme='dark'] .team-input {
+    background: color-mix(in srgb, var(--nr-surface) 88%, #000000 12%);
+}
+
+:root[data-theme='dark'] .team-input:focus {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--nr-green) 32%, #07121d 68%);
 }
 
 .buzzer-button {
@@ -69,5 +82,5 @@
 }
 
 .status.error {
-    color: #9d1f1f;
+    color: var(--nr-danger);
 }

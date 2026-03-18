@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "O11yPartyBuzzer", "O11yPartyBuzzer.csproj", "{C19668B1-FF72-616C-0498-BEA004438933}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C19668B1-FF72-616C-0498-BEA004438933}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C19668B1-FF72-616C-0498-BEA004438933}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C19668B1-FF72-616C-0498-BEA004438933}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C19668B1-FF72-616C-0498-BEA004438933}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A29D8258-E90B-44EE-A9F6-F2DED2F5DDA2}
+	EndGlobalSection
+EndGlobal
