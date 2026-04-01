@@ -4,29 +4,148 @@
 
 <PageTitle>Home</PageTitle>
 
-<main class="buzzer-shell">
-	<h1>O11y-Party Buzzer</h1>
-	<p>Enter your team name and hit the buzzer to answer the question.</p>
+<section class="buzzer-stage">
+	<main class="buzzer-shell @(isLeadCaptured ? string.Empty : "is-locked")" aria-hidden="@(!isLeadCaptured)">
+		<h1>O11y-Party Buzzer</h1>
+		<p>Enter your team name and hit the buzzer to answer the question.</p>
 
-	<label for="teamName">Team Name</label>
-	<input id="teamName" class="team-input" maxlength="80" @bind="teamName" @bind:event="oninput"
-		   placeholder="Team Rocket" />
+		<label for="teamName">Team Name</label>
+		<input id="teamName" class="team-input" maxlength="80" @bind="teamName" @bind:event="oninput"
+			   placeholder="Team Rocket" />
 
-	<button class="buzzer-button" @onclick="BuzzAsync" disabled="@isSubmitting">
-		@(isSubmitting ? "Buzzing..." : "BUZZ")
-	</button>
+		<button class="buzzer-button" @onclick="BuzzAsync" disabled="@isSubmitting">
+			@(isSubmitting ? "Buzzing..." : "BUZZ")
+		</button>
 
-	@if (!string.IsNullOrWhiteSpace(statusMessage))
+		@if (!string.IsNullOrWhiteSpace(statusMessage))
+		{
+			<p class="status @statusCssClass">@statusMessage</p>
+		}
+	</main>
+
+	@if (!isLeadCaptured)
 	{
-		<p class="status @statusCssClass">@statusMessage</p>
+		<section class="lead-gate" role="dialog" aria-modal="true" aria-labelledby="leadGateTitle">
+			<div class="lead-gate-card">
+				<h2 id="leadGateTitle">Before You Buzz</h2>
+				<p>Please complete the required details to continue.</p>
+
+				<EditForm Model="leadForm" OnSubmit="SubmitLeadFormAsync">
+					<div class="lead-grid">
+						<div class="lead-field">
+							<label for="firstName">First Name</label>
+							<input id="firstName" class="lead-input" required maxlength="100" @bind="leadForm.FirstName"
+								   @bind:event="oninput" />
+						</div>
+						<div class="lead-field">
+							<label for="lastName">Last Name</label>
+							<input id="lastName" class="lead-input" required maxlength="100" @bind="leadForm.LastName"
+								   @bind:event="oninput" />
+						</div>
+						<div class="lead-field lead-field-wide">
+							<label for="businessEmail">Business Email Address</label>
+							<input id="businessEmail" class="lead-input" required type="email" maxlength="180"
+								   @bind="leadForm.BusinessEmailAddress" @bind:event="oninput" />
+						</div>
+						<div class="lead-field">
+							<label for="companyName">Company Name</label>
+							<input id="companyName" class="lead-input" required maxlength="150" @bind="leadForm.CompanyName"
+								   @bind:event="oninput" />
+						</div>
+						<div class="lead-field">
+							<label for="jobTitle">Job Title</label>
+							<input id="jobTitle" class="lead-input" required maxlength="120" @bind="leadForm.JobTitle"
+								   @bind:event="oninput" />
+						</div>
+						<div class="lead-field lead-field-wide">
+							<label for="country">Country</label>
+							<input id="country" class="lead-input" required maxlength="120" @bind="leadForm.Country"
+								   @bind:event="oninput" />
+						</div>
+					</div>
+
+					@if (!string.IsNullOrWhiteSpace(leadFormError))
+					{
+						<p class="lead-error">@leadFormError</p>
+					}
+
+					<button class="lead-submit" type="submit" disabled="@isSubmittingLeadCapture">
+						@(isSubmittingLeadCapture ? "Submitting..." : "Continue To Buzzer")
+					</button>
+				</EditForm>
+			</div>
+		</section>
 	}
-</main>
+</section>
 
 @code {
+	private static readonly System.Text.RegularExpressions.Regex BusinessEmailRegex = new(
+		@"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
+		System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
 	private string teamName = string.Empty;
 	private string statusMessage = string.Empty;
 	private string statusCssClass = "ok";
 	private bool isSubmitting;
+	private bool isSubmittingLeadCapture;
+	private bool isLeadCaptured;
+	private string leadFormError = string.Empty;
+	private readonly LeadCaptureForm leadForm = new();
+
+	private async Task SubmitLeadFormAsync(EditContext _)
+	{
+		leadFormError = string.Empty;
+
+		if (HasMissingLeadFields())
+		{
+			leadFormError = "All fields are required.";
+			return;
+		}
+
+		leadForm.BusinessEmailAddress = leadForm.BusinessEmailAddress.Trim();
+		if (!BusinessEmailRegex.IsMatch(leadForm.BusinessEmailAddress))
+		{
+			leadFormError = "Enter a valid business email address.";
+			return;
+		}
+
+		leadForm.FirstName = leadForm.FirstName.Trim();
+		leadForm.LastName = leadForm.LastName.Trim();
+		leadForm.CompanyName = leadForm.CompanyName.Trim();
+		leadForm.JobTitle = leadForm.JobTitle.Trim();
+		leadForm.Country = leadForm.Country.Trim();
+
+		try
+		{
+			isSubmittingLeadCapture = true;
+			await EventPublisher.PublishLeadCaptureAsync(
+				leadForm.FirstName,
+				leadForm.LastName,
+				leadForm.BusinessEmailAddress,
+				leadForm.CompanyName,
+				leadForm.JobTitle,
+				leadForm.Country);
+			isLeadCaptured = true;
+		}
+		catch (Exception ex)
+		{
+			leadFormError = $"Could not submit details: {ex.Message}";
+		}
+		finally
+		{
+			isSubmittingLeadCapture = false;
+		}
+	}
+
+	private bool HasMissingLeadFields()
+	{
+		return string.IsNullOrWhiteSpace(leadForm.FirstName)
+			|| string.IsNullOrWhiteSpace(leadForm.LastName)
+			|| string.IsNullOrWhiteSpace(leadForm.BusinessEmailAddress)
+			|| string.IsNullOrWhiteSpace(leadForm.CompanyName)
+			|| string.IsNullOrWhiteSpace(leadForm.JobTitle)
+			|| string.IsNullOrWhiteSpace(leadForm.Country);
+	}
 
 	private async Task BuzzAsync()
 	{
@@ -55,5 +174,15 @@
 		{
 			isSubmitting = false;
 		}
+	}
+
+	private sealed class LeadCaptureForm
+	{
+		public string FirstName { get; set; } = string.Empty;
+		public string LastName { get; set; } = string.Empty;
+		public string BusinessEmailAddress { get; set; } = string.Empty;
+		public string CompanyName { get; set; } = string.Empty;
+		public string JobTitle { get; set; } = string.Empty;
+		public string Country { get; set; } = string.Empty;
 	}
 }

@@ -11,4 +11,6 @@ public sealed class NewRelicOptions
     public string Region { get; set; } = "US";
 
     public string EventType { get; set; } = "TeamBuzzed";
+
+    public string LeadCaptureEventType { get; set; } = "LeadCaptureSubmitted";
 }
