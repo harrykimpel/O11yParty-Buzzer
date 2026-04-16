@@ -95,6 +95,198 @@ a,
     padding-top: 1.1rem;
 }
 
+/* ── Illustrated landscape header (teal sky, peach moon, green hills, flowers) ── */
+.wth-header-cosmic {
+    position: relative;
+    width: 100%;
+    max-width: 980px;
+    margin: 1.25rem auto 0;
+    height: 200px;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.cosmic-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, #1a8a7d 0%, #3cb8a0 30%, #5ccdb5 55%, #78d9bf 75%, #2d8a6e 100%);
+    overflow: hidden;
+}
+
+/* large peach/salmon moon */
+.cosmic-stars {
+    position: absolute;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 45% 42%,
+        #f5d5a0 0%,
+        #f0c48a 35%,
+        #e8b07a 60%,
+        rgba(220,170,120,0.4) 85%,
+        transparent 100%);
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: moon-glow 8s ease-in-out infinite alternate;
+}
+
+@keyframes moon-glow {
+    0%   { filter: brightness(1) drop-shadow(0 0 30px rgba(240,200,140,0.3)); }
+    100% { filter: brightness(1.08) drop-shadow(0 0 50px rgba(240,200,140,0.45)); }
+}
+
+/* geometric clouds */
+.cosmic-nebula {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.cosmic-nebula::before {
+    content: '';
+    position: absolute;
+    width: 100px; height: 40px;
+    background: rgba(200, 230, 220, 0.6);
+    border-radius: 8px;
+    top: 22%;
+    left: 8%;
+    transform: rotate(-3deg);
+    box-shadow:
+        30px -10px 0 10px rgba(210, 240, 230, 0.5),
+        -15px 5px 0 5px rgba(190, 225, 215, 0.4);
+}
+
+.cosmic-nebula::after {
+    content: '';
+    position: absolute;
+    width: 80px; height: 35px;
+    background: rgba(210, 240, 230, 0.5);
+    border-radius: 8px;
+    top: 18%;
+    right: 12%;
+    transform: rotate(2deg);
+    box-shadow:
+        -20px 8px 0 8px rgba(200, 230, 222, 0.4),
+        25px -5px 0 6px rgba(220, 245, 235, 0.45);
+}
+
+/* rolling green hills */
+.cosmic-flowers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* dark mountain silhouettes */
+.cosmic-flowers::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -5%;
+    width: 45%;
+    height: 65%;
+    background: linear-gradient(160deg, #1a4a3a 0%, #153d30 100%);
+    clip-path: polygon(0% 100%, 15% 30%, 35% 50%, 55% 20%, 80% 45%, 100% 35%, 100% 100%);
+}
+
+.cosmic-flowers::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: -5%;
+    width: 50%;
+    height: 55%;
+    background: linear-gradient(200deg, #1d5040 0%, #174435 100%);
+    clip-path: polygon(0% 50%, 20% 25%, 45% 40%, 70% 15%, 100% 30%, 100% 100%, 0% 100%);
+}
+
+/* foreground green hill */
+.cosmic-glow {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 45%;
+    background: linear-gradient(180deg, #2d8a5e 0%, #256e4a 40%, #1e5c3c 100%);
+    clip-path: ellipse(75% 100% at 50% 100%);
+    z-index: 1;
+}
+
+/* individual geometric flowers on the hillside */
+.flower {
+    position: absolute;
+    z-index: 2;
+    animation: sway 5s ease-in-out infinite alternate;
+}
+
+.flower::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.flower::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 10px;
+    background: #1a5a3a;
+    border-radius: 1px;
+}
+
+/* coral/red flowers */
+.f1  { width: 14px; height: 14px; background: #e05540; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); bottom: 18%; left: 6%;  animation-delay: 0s; }
+.f2  { width: 10px; height: 10px; background: #d94830; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); bottom: 22%; left: 14%; animation-delay: 0.5s; }
+.f3  { width: 16px; height: 16px; background: #e8624e; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); bottom: 14%; left: 24%; animation-delay: 1.2s; }
+.f4  { width: 12px; height: 12px; background: #cc4466; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); bottom: 20%; left: 35%; animation-delay: 0.3s; }
+.f5  { width: 18px; height: 18px; background: #e05050; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); bottom: 12%; left: 46%; animation-delay: 1.8s; }
+/* pink/magenta flowers */
+.f6  { width: 12px; height: 12px; background: #d060a0; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); bottom: 16%; left: 56%; animation-delay: 0.8s; }
+.f7  { width: 10px; height: 10px; background: #e87090; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); bottom: 20%; left: 65%; animation-delay: 1.5s; }
+/* teal/blue flowers */
+.f8  { width: 14px; height: 14px; background: #40b0a0; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); bottom: 15%; left: 74%; animation-delay: 0.6s; }
+.f9  { width: 10px; height: 10px; background: #50c0b0; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); bottom: 22%; left: 82%; animation-delay: 2s; }
+/* orange accent flowers */
+.f10 { width: 12px; height: 12px; background: #e07838; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); bottom: 24%; left: 20%; animation-delay: 1s; }
+.f11 { width: 8px;  height: 8px;  background: #d06048; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); bottom: 18%; left: 88%; animation-delay: 1.4s; }
+.f12 { width: 14px; height: 14px; background: #cc5060; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); bottom: 10%; left: 40%; animation-delay: 0.2s; }
+
+.flower::before, .flower::after { display: none; }
+
+@keyframes sway {
+    0%   { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(-4px) rotate(4deg); }
+}
+
+/* content overlay */
+.cosmic-content {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 1.5rem;
+    padding: 0 2rem;
+}
+
+.cosmic-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    font-weight: 800;
+    margin: 0;
+    color: #fff;
+    text-shadow:
+        0 2px 20px rgba(0, 0, 0, 0.35),
+        0 0 60px rgba(240, 200, 140, 0.25);
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
 h1:focus {
     outline: none;
 }
