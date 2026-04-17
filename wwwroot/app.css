@@ -92,7 +92,7 @@ a,
 }
 
 .content {
-    padding-top: 1.1rem;
+    padding-top: 0.25rem;
 }
 
 /* ── Illustrated landscape header (teal sky, peach moon, green hills, flowers) ── */
@@ -100,7 +100,7 @@ a,
     position: relative;
     width: 100%;
     max-width: 980px;
-    margin: 1.25rem auto 0;
+    margin: 0.25rem auto 0;
     height: 200px;
     border-radius: 20px;
     overflow: hidden;

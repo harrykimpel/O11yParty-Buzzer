@@ -6,12 +6,11 @@ main {
     min-height: 100vh;
 }
 
-.theme-toolbar {
-    max-width: 980px;
-    margin: 0.85rem auto 0;
-    padding: 0 1rem;
-    display: flex;
-    justify-content: flex-end;
+.header-actions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
 }
 
 .theme-toggle {
@@ -19,12 +18,23 @@ main {
     background: color-mix(in srgb, var(--nr-surface) 90%, #ffffff 10%);
     color: var(--nr-ink-soft);
     border-radius: 999px;
-    padding: 0.35rem 0.8rem;
-    font-size: 0.85rem;
-    font-weight: 700;
-    min-width: 5.75rem;
-    line-height: 1.15;
+    padding: 0.45rem;
+    line-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    cursor: pointer;
 }
+
+/* In dark mode show the sun icon, hide the moon */
+:root[data-theme='dark'] .icon-sun { display: inline; }
+:root[data-theme='dark'] .icon-moon { display: none; }
+
+/* In light mode show the moon icon, hide the sun */
+:root[data-theme='light'] .icon-sun { display: none; }
+:root[data-theme='light'] .icon-moon { display: inline; }
 
 .theme-toggle:hover {
     background: color-mix(in srgb, var(--nr-green-soft) 14%, var(--nr-surface) 86%);
@@ -41,7 +51,7 @@ main {
 }
 
 article {
-    padding-top: 1rem;
+    padding-top: 0;
 }
 
 #blazor-error-ui {

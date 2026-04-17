@@ -33,7 +33,6 @@
 
         for (var i = 0; i < buttons.length; i++) {
             var button = buttons[i];
-            button.textContent = nextTheme;
             button.setAttribute("aria-label", "Switch to " + nextTheme + " theme");
             button.setAttribute("title", "Switch to " + nextTheme + " theme");
         }
