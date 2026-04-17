@@ -1,5 +1,7 @@
 # O11yParty Buzzer (.NET 10 Blazor)
 
+![O11yParty-Buzzer](./Assets/O11yParty-Buzzer.png)
+
 This app is a stateless buzzer UI.
 
 Users enter a team name and press the BUZZ button. The app immediately sends a custom New Relic event and does not persist any state.
