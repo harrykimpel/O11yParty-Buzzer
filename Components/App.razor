@@ -18,7 +18,14 @@
 <body>
     <Routes />
     <ReconnectModal />
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]" onerror="window.__blazorWebFailed = true"></script>
+    <script>
+        if (window.__blazorWebFailed) {
+            var fallback = document.createElement('script');
+            fallback.src = './_framework/blazor.server.js';
+            document.body.appendChild(fallback);
+        }
+    </script>
 </body>
 
 </html>

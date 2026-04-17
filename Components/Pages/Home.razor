@@ -29,49 +29,47 @@
 				<h2 id="leadGateTitle">Before You Buzz</h2>
 				<p>Please complete the required details to continue.</p>
 
-				<EditForm Model="leadForm" OnSubmit="SubmitLeadFormAsync">
-					<div class="lead-grid">
-						<div class="lead-field">
-							<label for="firstName">First Name</label>
-							<input id="firstName" class="lead-input" required maxlength="100" @bind="leadForm.FirstName"
-								   @bind:event="oninput" />
-						</div>
-						<div class="lead-field">
-							<label for="lastName">Last Name</label>
-							<input id="lastName" class="lead-input" required maxlength="100" @bind="leadForm.LastName"
-								   @bind:event="oninput" />
-						</div>
-						<div class="lead-field lead-field-wide">
-							<label for="businessEmail">Business Email Address</label>
-							<input id="businessEmail" class="lead-input" required type="email" maxlength="180"
-								   @bind="leadForm.BusinessEmailAddress" @bind:event="oninput" />
-						</div>
-						<div class="lead-field">
-							<label for="companyName">Company Name</label>
-							<input id="companyName" class="lead-input" required maxlength="150" @bind="leadForm.CompanyName"
-								   @bind:event="oninput" />
-						</div>
-						<div class="lead-field">
-							<label for="jobTitle">Job Title</label>
-							<input id="jobTitle" class="lead-input" required maxlength="120" @bind="leadForm.JobTitle"
-								   @bind:event="oninput" />
-						</div>
-						<div class="lead-field lead-field-wide">
-							<label for="country">Country</label>
-							<input id="country" class="lead-input" required maxlength="120" @bind="leadForm.Country"
-								   @bind:event="oninput" />
-						</div>
+				<div class="lead-grid">
+					<div class="lead-field">
+						<label for="firstName">First Name</label>
+						<input id="firstName" class="lead-input" required maxlength="100" @bind="leadForm.FirstName"
+							   @bind:event="oninput" />
 					</div>
+					<div class="lead-field">
+						<label for="lastName">Last Name</label>
+						<input id="lastName" class="lead-input" required maxlength="100" @bind="leadForm.LastName"
+							   @bind:event="oninput" />
+					</div>
+					<div class="lead-field lead-field-wide">
+						<label for="businessEmail">Business Email Address</label>
+						<input id="businessEmail" class="lead-input" required type="email" maxlength="180"
+							   @bind="leadForm.BusinessEmailAddress" @bind:event="oninput" />
+					</div>
+					<div class="lead-field">
+						<label for="companyName">Company Name</label>
+						<input id="companyName" class="lead-input" required maxlength="150" @bind="leadForm.CompanyName"
+							   @bind:event="oninput" />
+					</div>
+					<div class="lead-field">
+						<label for="jobTitle">Job Title</label>
+						<input id="jobTitle" class="lead-input" required maxlength="120" @bind="leadForm.JobTitle"
+							   @bind:event="oninput" />
+					</div>
+					<div class="lead-field lead-field-wide">
+						<label for="country">Country</label>
+						<input id="country" class="lead-input" required maxlength="120" @bind="leadForm.Country"
+							   @bind:event="oninput" />
+					</div>
+				</div>
 
-					@if (!string.IsNullOrWhiteSpace(leadFormError))
-					{
-						<p class="lead-error">@leadFormError</p>
-					}
+				@if (!string.IsNullOrWhiteSpace(leadFormError))
+				{
+					<p class="lead-error">@leadFormError</p>
+				}
 
-					<button class="lead-submit" type="submit" disabled="@isSubmittingLeadCapture">
-						@(isSubmittingLeadCapture ? "Submitting..." : "Continue To Buzzer")
-					</button>
-				</EditForm>
+				<button class="lead-submit" type="button" @onclick="SubmitLeadFormAsync" disabled="@isSubmittingLeadCapture">
+					@(isSubmittingLeadCapture ? "Submitting..." : "Continue To Buzzer")
+				</button>
 			</div>
 		</section>
 	}
@@ -91,7 +89,7 @@
 	private string leadFormError = string.Empty;
 	private readonly LeadCaptureForm leadForm = new();
 
-	private async Task SubmitLeadFormAsync(EditContext _)
+	private async Task SubmitLeadFormAsync()
 	{
 		leadFormError = string.Empty;
 

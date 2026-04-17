@@ -1,0 +1,8 @@
+bin/
+obj/
+.git/
+.github/
+*.md
+*.sln
+.vs/
+.vscode/
