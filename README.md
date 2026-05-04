@@ -27,7 +27,21 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+> **⚠️ Disabled by default.** Chaos injection is gated behind the `Chaos__Enabled` flag.
+> It must be explicitly enabled in non-production environments. **Never enable it in production.**
+
+To enable chaos injection, set the following configuration value:
+
+```json
+// appsettings.Development.json  (or via environment variable Chaos__Enabled=true)
+{
+  "Chaos": {
+    "Enabled": true
+  }
+}
+```
+
+When enabled, append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
@@ -37,6 +51,8 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 | `timeout`   | Simulates a long-running request that times out after 35 s    |
 
 Example: `http://localhost:5071/?chaos=random`
+
+When `Chaos__Enabled` is `false` (the default), the `?chaos=` query parameter is silently ignored and no synthetic failures are injected.
 
 ## Event Payload
 
