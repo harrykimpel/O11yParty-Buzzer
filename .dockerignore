@@ -6,3 +6,4 @@ obj/
 *.sln
 .vs/
 .vscode/
+app/

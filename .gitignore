@@ -30,3 +30,4 @@ packages/
 
 .DS_Store
 aws
+app/

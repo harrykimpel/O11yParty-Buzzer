@@ -89,6 +89,7 @@
 	private string leadFormError = string.Empty;
 	private readonly LeadCaptureForm leadForm = new();
 
+	[NewRelic.Api.Agent.Transaction]
 	private async Task SubmitLeadFormAsync()
 	{
 		leadFormError = string.Empty;
@@ -111,6 +112,15 @@
 		leadForm.CompanyName = leadForm.CompanyName.Trim();
 		leadForm.JobTitle = leadForm.JobTitle.Trim();
 		leadForm.Country = leadForm.Country.Trim();
+
+		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
+		transaction.AddCustomAttribute("FirstName", leadForm.FirstName.Trim())
+			.AddCustomAttribute("LastName", leadForm.LastName.Trim())
+			.AddCustomAttribute("CompanyName", leadForm.CompanyName.Trim())
+			.AddCustomAttribute("JobTitle", leadForm.JobTitle.Trim())
+			.AddCustomAttribute("Country", leadForm.Country.Trim())
+			.AddCustomAttribute("BusinessEmailAddress", leadForm.BusinessEmailAddress.Trim());
 
 		try
 		{
@@ -144,6 +154,7 @@
 			|| string.IsNullOrWhiteSpace(leadForm.Country);
 	}
 
+	[NewRelic.Api.Agent.Transaction]
 	private async Task BuzzAsync()
 	{
 		var normalizedTeamName = teamName.Trim();
@@ -161,6 +172,10 @@
 			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
 			statusCssClass = "ok";
 			statusMessage = $"Buzz received for {normalizedTeamName}.";
+
+			NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
+			NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
+			transaction.AddCustomAttribute("TeamName", normalizedTeamName);
 		}
 		catch (Exception ex)
 		{

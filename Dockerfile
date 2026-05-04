@@ -6,6 +6,7 @@ RUN dotnet restore O11yPartyBuzzer.csproj
 
 COPY . ./
 RUN dotnet publish O11yPartyBuzzer.csproj -c Release -o /app/publish
+COPY newrelic.config /app/publish/newrelic/newrelic.config
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
@@ -19,6 +20,16 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # Example: NewRelic__UserApiKey=your-user-api-key
 ENV NewRelic__AccountId=
 ENV NewRelic__IngestApiKey=
+
+# Enable the agent
+ENV NEW_RELIC_LICENSE_KEY=
+
+ENV CORECLR_ENABLE_PROFILING=1 \
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A} \
+CORECLR_NEWRELIC_HOME=/app/newrelic \
+CORECLR_PROFILER_PATH=/app/newrelic/linux-arm64/libNewRelicProfiler.so \
+NEW_RELIC_APP_NAME="O11yParty-Buzzer" \
+NEW_RELIC_LOG_LEVEL=debug
 
 EXPOSE 8080
 
