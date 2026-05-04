@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment Env
 
 <PageTitle>Home</PageTitle>
 
@@ -213,6 +214,12 @@
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		if (!Env.IsDevelopment())
+		{
+			Logger.LogWarning("Synthetic failure mode '{FailureMode}' ignored — chaos injection is disabled outside Development", mode);
 			return;
 		}
 
