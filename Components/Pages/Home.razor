@@ -94,10 +94,11 @@
 	/// Synthetic failure mode. Supported values:
 	///   latency   – adds an artificial delay (see latencyMs)
 	///   exception – throws an unhandled exception on every buzz
-	///   chaos     – fails ~50 % of buzzes at random
+	///   random    – fails ~50 % of buzzes at random
 	///   timeout   – simulates a long-running request that eventually times out
+	/// Use: ?chaos=latency|exception|random|timeout
 	/// </summary>
-	[SupplyParameterFromQuery(Name = "failure")]
+	[SupplyParameterFromQuery(Name = "chaos")]
 	public string? FailureMode { get; set; }
 
 	/// <summary>Delay in milliseconds used when failure=latency (default 3000).</summary>
@@ -206,6 +207,7 @@
 		}
 	}
 
+	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
@@ -232,18 +234,18 @@
 
 			case "exception":
 				Logger.LogError("Synthetic exception triggered");
-				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?failure=exception");
+				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?chaos=exception");
 
-			case "chaos":
+			case "random":
 			{
 				var roll = Random.Shared.NextDouble();
 				transaction.AddCustomAttribute("syntheticChaosRoll", roll);
 				if (roll < 0.5)
 				{
-					Logger.LogError("Synthetic chaos failure (roll={Roll:F2})", roll);
-					throw new InvalidOperationException($"Synthetic failure: chaos mode rolled {roll:F2} (< 0.5) — buzz dropped");
+					Logger.LogError("Synthetic random failure (roll={Roll:F2})", roll);
+					throw new InvalidOperationException($"Synthetic failure: random mode rolled {roll:F2} (< 0.5) — buzz dropped");
 				}
-				Logger.LogInformation("Synthetic chaos survived (roll={Roll:F2})", roll);
+				Logger.LogInformation("Synthetic random survived (roll={Roll:F2})", roll);
 				break;
 			}
 
@@ -259,7 +261,7 @@
 				}
 				catch (OperationCanceledException)
 				{
-					throw new TimeoutException("Synthetic failure: request timed out after 35 s (injected via ?failure=timeout)");
+					throw new TimeoutException("Synthetic failure: request timed out after 35 s (injected via ?chaos=timeout)");
 				}
 				break;
 			}
