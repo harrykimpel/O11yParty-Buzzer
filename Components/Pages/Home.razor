@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosOptions> ChaosOptions
 
 <PageTitle>Home</PageTitle>
 
@@ -211,14 +212,25 @@
 	private async Task ApplySyntheticFailureAsync()
 	{
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
+		// Strip control characters to prevent log-forging attacks via user-supplied query parameter
+		// values. Chaos mode names are always simple ASCII keywords (e.g. "exception", "random"),
+		// so restricting to printable ASCII (0x20–0x7E) is intentional and sufficient here.
+		mode = new string(mode.Where(static c => c >= 0x20 && c <= 0x7E).ToArray());
 		if (string.IsNullOrEmpty(mode))
 		{
 			return;
 		}
 
+		if (!ChaosOptions.Value.Enabled)
+		{
+			Logger.LogWarning("Chaos injection requested (?chaos={FailureMode}) but is disabled by configuration — ignoring", mode);
+			return;
+		}
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
+		transaction.AddCustomAttribute("syntheticFailureMode", mode)
+			.AddCustomAttribute("isSyntheticTraffic", true);
 		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)
