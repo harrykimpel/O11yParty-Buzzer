@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosOptions> ChaosOptionsAccessor
 
 <PageTitle>Home</PageTitle>
 
@@ -210,6 +211,11 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
+		if (!ChaosOptionsAccessor.Value.Enabled)
+		{
+			return;
+		}
+
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{

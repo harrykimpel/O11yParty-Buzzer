@@ -27,7 +27,11 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+> **Production safeguard:** Chaos mode is **disabled by default** (`ChaosEngineering__Enabled=false`).
+> It is enabled automatically in the `Development` environment via `appsettings.Development.json`.
+> All `?chaos=*` query parameters are silently ignored when chaos mode is disabled.
+
+Append `?chaos=<mode>` to the URL to simulate failure conditions (only active when `ChaosEngineering__Enabled=true`):
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
@@ -37,6 +41,20 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 | `timeout`   | Simulates a long-running request that times out after 35 s    |
 
 Example: `http://localhost:5071/?chaos=random`
+
+To enable chaos mode outside of Development, set the environment variable or config value:
+
+```bash
+# Environment variable
+ChaosEngineering__Enabled=true
+
+# appsettings.json / appsettings.Staging.json
+{
+  "ChaosEngineering": {
+    "Enabled": true
+  }
+}
+```
 
 ## Event Payload
 
