@@ -17,6 +17,15 @@ Set these values before running:
 
 You can set them as environment variables, user-secrets, or directly in `appsettings.json`.
 
+## Configure Data Protection (distributed deployments)
+
+By default the app stores ASP.NET Core data-protection keys in a `keys/` sub-directory under the application root. In a stateless environment such as ECS Fargate, mount a persistent volume (e.g. EFS) and point the following setting at it so that keys survive container restarts and are shared across all tasks:
+
+- **`appsettings.json`**: `"DataProtection": { "KeysPath": "/mnt/efs/keys" }`
+- **Environment variable**: `DataProtection__KeysPath=/mnt/efs/keys` (double underscore is the ASP.NET Core env-var separator)
+
+The value must be an **absolute path** to a writable directory. If omitted, keys default to `<ContentRoot>/keys`.
+
 ## Run
 
 ```bash
@@ -26,6 +35,8 @@ dotnet run
 Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
+
+> **Note:** Chaos endpoints are disabled in `Production`. They are active only when `ASPNETCORE_ENVIRONMENT` is set to `Development` or another non-production value.
 
 Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
