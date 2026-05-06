@@ -3,6 +3,7 @@
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
 @using System.Diagnostics
+@using O11yPartyBuzzer.Services
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -140,7 +141,7 @@
 			.AddCustomAttribute("Country", leadForm.Country.Trim())
 			.AddCustomAttribute("BusinessEmailAddress", leadForm.BusinessEmailAddress.Trim());
 
-		O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.WarnIfMemoryPressure(Logger, "LeadCapture");
+		MemoryDiagnosticsLogger.WarnIfMemoryPressure(Logger, "LeadCapture");
 
 		var sw = Stopwatch.StartNew();
 		try
@@ -157,8 +158,8 @@
 			sw.Stop();
 			isLeadCaptured = true;
 			Logger.LogInformation("Lead capture completed in {ElapsedMs} ms", sw.ElapsedMilliseconds);
-			transaction.AddCustomAttribute("leadCaptureElapsedMs", sw.ElapsedMilliseconds);
-			O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.LogMemoryStats(Logger, "LeadCapture.End");
+			transaction.AddCustomAttribute("LeadCaptureElapsedMs", sw.ElapsedMilliseconds);
+			MemoryDiagnosticsLogger.LogMemoryStats(Logger, "LeadCapture.End");
 		}
 		catch (Exception ex)
 		{
@@ -194,7 +195,7 @@
 			return;
 		}
 
-		O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.WarnIfMemoryPressure(Logger, "Buzz");
+		MemoryDiagnosticsLogger.WarnIfMemoryPressure(Logger, "Buzz");
 
 		var sw = Stopwatch.StartNew();
 		try
@@ -215,8 +216,8 @@
 			NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 			NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 			transaction.AddCustomAttribute("TeamName", normalizedTeamName)
-				.AddCustomAttribute("buzzElapsedMs", sw.ElapsedMilliseconds);
-			O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.LogMemoryStats(Logger, "Buzz.End");
+				.AddCustomAttribute("BuzzElapsedMs", sw.ElapsedMilliseconds);
+			MemoryDiagnosticsLogger.LogMemoryStats(Logger, "Buzz.End");
 		}
 		catch (Exception ex)
 		{
