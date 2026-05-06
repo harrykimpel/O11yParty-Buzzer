@@ -12,7 +12,7 @@ Owner: [Components/Pages/Home.razor](../Components/Pages/Home.razor)
 
 ### CHAOS-01: No chaos parameter — normal behavior
 
-```
+```plain
 Given: URL does not include ?chaos=
 When:  attendee clicks BUZZ
 Then:  buzz proceeds normally with no artificial delay, failure, or timeout
@@ -20,7 +20,7 @@ Then:  buzz proceeds normally with no artificial delay, failure, or timeout
 
 ### CHAOS-02: chaos=latency delays the buzz
 
-```
+```plain
 Given: URL includes ?chaos=latency
   And: optional &latencyMs=5000 (default: 3000ms)
 When:  attendee clicks BUZZ
@@ -31,7 +31,7 @@ Then:  buzz is delayed by latencyMs before the event is sent
 
 ### CHAOS-03: chaos=exception throws on every buzz
 
-```
+```plain
 Given: URL includes ?chaos=exception
 When:  attendee clicks BUZZ
 Then:  an unhandled exception is raised before PublishBuzzAsync is called
@@ -40,7 +40,7 @@ Then:  an unhandled exception is raised before PublishBuzzAsync is called
 
 ### CHAOS-04: chaos=random fails approximately half of buzzes
 
-```
+```plain
 Given: URL includes ?chaos=random
 When:  attendee clicks BUZZ
 Then:  ~50% of clicks produce an error state (PublishBuzzAsync not called or fails)
@@ -50,7 +50,7 @@ Then:  ~50% of clicks produce an error state (PublishBuzzAsync not called or fai
 
 ### CHAOS-05: chaos=timeout simulates a hung request
 
-```
+```plain
 Given: URL includes ?chaos=timeout
 When:  attendee clicks BUZZ
 Then:  the operation hangs for ~35 seconds
@@ -60,7 +60,7 @@ Then:  the operation hangs for ~35 seconds
 
 ### CHAOS-06: Unknown chaos value is treated as no-op
 
-```
+```plain
 Given: URL includes ?chaos=unknown_value
 When:  attendee clicks BUZZ
 Then:  buzz proceeds normally as if no chaos parameter was present
