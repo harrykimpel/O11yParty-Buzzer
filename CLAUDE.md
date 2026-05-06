@@ -61,3 +61,8 @@ The app is deployed behind a reverse proxy (AWS App Runner); `Program.cs` config
 - Dark/light theme toggle via `wwwroot/theme.js` — persists preference to `localStorage`
 - Bootstrap for layout; scoped CSS per component (`.razor.css` files)
 - No JavaScript bundler — static files served directly from `wwwroot/`
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
