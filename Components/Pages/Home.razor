@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@using System.Diagnostics
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -139,9 +140,13 @@
 			.AddCustomAttribute("Country", leadForm.Country.Trim())
 			.AddCustomAttribute("BusinessEmailAddress", leadForm.BusinessEmailAddress.Trim());
 
+		O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.WarnIfMemoryPressure(Logger, "LeadCapture");
+
+		var sw = Stopwatch.StartNew();
 		try
 		{
 			isSubmittingLeadCapture = true;
+			Logger.LogInformation("Lead capture submission started");
 			await EventPublisher.PublishLeadCaptureAsync(
 				leadForm.FirstName,
 				leadForm.LastName,
@@ -149,10 +154,17 @@
 				leadForm.CompanyName,
 				leadForm.JobTitle,
 				leadForm.Country);
+			sw.Stop();
 			isLeadCaptured = true;
+			Logger.LogInformation("Lead capture completed in {ElapsedMs} ms", sw.ElapsedMilliseconds);
+			transaction.AddCustomAttribute("leadCaptureElapsedMs", sw.ElapsedMilliseconds);
+			O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.LogMemoryStats(Logger, "LeadCapture.End");
 		}
 		catch (Exception ex)
 		{
+			sw.Stop();
+			Logger.LogError(ex, "Lead capture failed after {ElapsedMs} ms", sw.ElapsedMilliseconds);
+			NewRelic.Api.Agent.NewRelic.NoticeError(ex);
 			leadFormError = $"Could not submit details: {ex.Message}";
 		}
 		finally
@@ -182,23 +194,36 @@
 			return;
 		}
 
+		O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.WarnIfMemoryPressure(Logger, "Buzz");
+
+		var sw = Stopwatch.StartNew();
 		try
 		{
 			isSubmitting = true;
 			statusMessage = string.Empty;
+			Logger.LogInformation("Buzz started for team {TeamName}", normalizedTeamName);
 
 			await ApplySyntheticFailureAsync();
 
 			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
+			sw.Stop();
 			statusCssClass = "ok";
 			statusMessage = $"Buzz received for {normalizedTeamName}.";
+			Logger.LogInformation("Buzz completed in {ElapsedMs} ms for team {TeamName}",
+				sw.ElapsedMilliseconds, normalizedTeamName);
 
 			NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 			NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-			transaction.AddCustomAttribute("TeamName", normalizedTeamName);
+			transaction.AddCustomAttribute("TeamName", normalizedTeamName)
+				.AddCustomAttribute("buzzElapsedMs", sw.ElapsedMilliseconds);
+			O11yPartyBuzzer.Services.MemoryDiagnosticsLogger.LogMemoryStats(Logger, "Buzz.End");
 		}
 		catch (Exception ex)
 		{
+			sw.Stop();
+			Logger.LogError(ex, "Buzz failed after {ElapsedMs} ms for team {TeamName}",
+				sw.ElapsedMilliseconds, normalizedTeamName);
+			NewRelic.Api.Agent.NewRelic.NoticeError(ex);
 			statusCssClass = "error";
 			statusMessage = $"Could not send buzz event: {ex.Message}";
 		}
