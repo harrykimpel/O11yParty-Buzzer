@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Logging.AddJsonConsole();
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Logging.AddJsonConsole();
+}
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -12,15 +16,21 @@ builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(New
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>((serviceProvider, client) =>
 {
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<NewRelicOptions>>().Value;
-    var timeoutSeconds = options.RequestTimeoutSeconds > 0 ? options.RequestTimeoutSeconds : 3;
+    var options = serviceProvider.GetRequiredService<IOptions<NewRelicOptions>>().Value;
+    var timeoutSeconds = options.RequestTimeoutSeconds > 0
+        ? options.RequestTimeoutSeconds
+        : NewRelicOptions.DefaultRequestTimeoutSeconds;
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 })
 .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
 {
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<NewRelicOptions>>().Value;
-    var maxConnectionsPerServer = options.MaxConnectionsPerServer > 0 ? options.MaxConnectionsPerServer : 32;
-    var pooledConnectionLifetimeSeconds = options.PooledConnectionLifetimeSeconds > 0 ? options.PooledConnectionLifetimeSeconds : 300;
+    var options = serviceProvider.GetRequiredService<IOptions<NewRelicOptions>>().Value;
+    var maxConnectionsPerServer = options.MaxConnectionsPerServer > 0
+        ? options.MaxConnectionsPerServer
+        : NewRelicOptions.DefaultMaxConnectionsPerServer;
+    var pooledConnectionLifetimeSeconds = options.PooledConnectionLifetimeSeconds > 0
+        ? options.PooledConnectionLifetimeSeconds
+        : NewRelicOptions.DefaultPooledConnectionLifetimeSeconds;
 
     return new SocketsHttpHandler
     {

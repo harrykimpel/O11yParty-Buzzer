@@ -135,11 +135,18 @@ public sealed class NewRelicEventPublisher(
 
     private string GetEndpoint()
     {
-        return _memoryCache.GetOrCreate(EndpointCacheKey, entry =>
+        var endpoint = _memoryCache.GetOrCreate(EndpointCacheKey, entry =>
         {
             entry.SlidingExpiration = TimeSpan.FromHours(1);
             return BuildEndpoint(_options.Region, _options.AccountId);
-        })!;
+        });
+
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException("Unable to build New Relic endpoint from current configuration.");
+        }
+
+        return endpoint;
     }
 
     private async Task<HttpResponseMessage> SendWithDiagnosticsAsync(
@@ -147,7 +154,9 @@ public sealed class NewRelicEventPublisher(
         string operationName,
         CancellationToken cancellationToken)
     {
-        var warningThresholdMs = _options.SlowRequestWarningThresholdMs > 0 ? _options.SlowRequestWarningThresholdMs : 1000;
+        var warningThresholdMs = _options.SlowRequestWarningThresholdMs > 0
+            ? _options.SlowRequestWarningThresholdMs
+            : NewRelicOptions.DefaultSlowRequestWarningThresholdMs;
         var stopwatch = Stopwatch.StartNew();
         try
         {
