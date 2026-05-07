@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
+builder.Services.Configure<ChaosEngineeringOptions>(builder.Configuration.GetSection(ChaosEngineeringOptions.SectionName));
+builder.Services.AddSingleton<ChaosModePolicy>();
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
 
 // Trust forwarded headers from App Runner's reverse proxy
@@ -19,6 +21,9 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 var app = builder.Build();
+var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+var chaosModePolicy = app.Services.GetRequiredService<ChaosModePolicy>();
+chaosModePolicy.ValidateStartupConfiguration();
 
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
@@ -32,6 +37,18 @@ if (!app.Environment.IsDevelopment())
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 //app.UseHttpsRedirection();
+
+app.Use(async (context, next) =>
+{
+    if (app.Environment.IsProduction() && context.Request.Query.ContainsKey("chaos"))
+    {
+        startupLogger.LogWarning(
+            "Chaos query parameter detected for {Path} in production and will be ignored",
+            context.Request.Path);
+    }
+
+    await next();
+});
 
 app.UseAntiforgery();
 

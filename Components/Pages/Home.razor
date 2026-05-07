@@ -1,6 +1,7 @@
 ﻿@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+@inject O11yPartyBuzzer.Services.ChaosModePolicy ChaosModePolicy
 @inject ILogger<Home> Logger
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
@@ -211,8 +212,7 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
-		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
-		if (string.IsNullOrEmpty(mode))
+		if (!ChaosModePolicy.TryGetAllowedMode(FailureMode, out var mode))
 		{
 			return;
 		}
