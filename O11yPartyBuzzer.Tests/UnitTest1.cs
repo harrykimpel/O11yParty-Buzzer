@@ -46,6 +46,19 @@ public class ChaosModePolicyTests
     }
 
     [Fact]
+    public void TryGetAllowedMode_ReturnsTrue_InProductionWhenExplicitlyAllowed()
+    {
+        var policy = CreatePolicy(
+            new ChaosEngineeringOptions { Enabled = true, AllowInProduction = true },
+            environmentName: "Production");
+
+        var allowed = policy.TryGetAllowedMode("exception", out var mode);
+
+        Assert.True(allowed);
+        Assert.Equal("exception", mode);
+    }
+
+    [Fact]
     public void ValidateStartupConfiguration_Throws_WhenAllowInProductionEnabled()
     {
         var policy = CreatePolicy(

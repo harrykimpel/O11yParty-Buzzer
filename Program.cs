@@ -42,9 +42,7 @@ app.Use(async (context, next) =>
 {
     if (app.Environment.IsProduction() && context.Request.Query.ContainsKey("chaos"))
     {
-        startupLogger.LogWarning(
-            "Chaos query parameter detected for {Path} in production and will be ignored",
-            context.Request.Path);
+        startupLogger.LogWarning("Chaos query parameter detected in production and will be ignored");
     }
 
     await next();

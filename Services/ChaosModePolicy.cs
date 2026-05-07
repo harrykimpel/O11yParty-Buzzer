@@ -17,13 +17,13 @@ public sealed class ChaosModePolicy(
 
         if (!chaosOptions.Value.Enabled)
         {
-            logger.LogWarning("Chaos mode '{Mode}' requested while chaos feature is disabled", normalizedMode);
+            logger.LogWarning("Chaos mode requested while chaos feature is disabled");
             return false;
         }
 
-        if (hostEnvironment.IsProduction())
+        if (hostEnvironment.IsProduction() && !chaosOptions.Value.AllowInProduction)
         {
-            logger.LogWarning("Chaos mode '{Mode}' requested in production and was blocked", normalizedMode);
+            logger.LogWarning("Chaos mode requested in production and was blocked");
             return false;
         }
 
