@@ -13,4 +13,12 @@ public sealed class NewRelicOptions
     public string EventType { get; set; } = "TeamBuzzed";
 
     public string LeadCaptureEventType { get; set; } = "LeadCaptureSubmitted";
+
+    public int RequestTimeoutSeconds { get; set; } = 3;
+
+    public int SlowRequestWarningThresholdMs { get; set; } = 1000;
+
+    public int MaxConnectionsPerServer { get; set; } = 32;
+
+    public int PooledConnectionLifetimeSeconds { get; set; } = 300;
 }
