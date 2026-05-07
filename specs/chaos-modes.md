@@ -6,6 +6,7 @@ Owner: [Components/Pages/Home.razor](../Components/Pages/Home.razor)
 
 - Chaos modes are activated exclusively via the `chaos` query parameter
 - Chaos modes are demo/testing features — they must not affect behavior when the parameter is absent
+- Chaos modes are disabled in production (`ASPNETCORE_ENVIRONMENT=Production`)
 - All chaos modes should add a custom attribute to the New Relic transaction for traceability
 
 ## Scenarios
@@ -29,13 +30,13 @@ Then:  buzz is delayed by latencyMs before the event is sent
   And: success or error status is shown as usual
 ```
 
-### CHAOS-03: chaos=exception throws on every buzz
+### CHAOS-03: chaos=exception is ignored
 
 ```plain
 Given: URL includes ?chaos=exception
 When:  attendee clicks BUZZ
-Then:  an unhandled exception is raised before PublishBuzzAsync is called
-  And: New Relic captures the exception as an error event
+Then:  no synthetic exception is thrown
+  And: buzz proceeds as if no chaos mode was selected
 ```
 
 ### CHAOS-04: chaos=random fails approximately half of buzzes

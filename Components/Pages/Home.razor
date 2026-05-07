@@ -1,7 +1,8 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment HostEnvironment
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -92,9 +93,9 @@
 	private readonly LeadCaptureForm leadForm = new();
 
 	/// <summary>
-	/// Synthetic failure mode. Supported values:
+	/// Synthetic chaos mode (non-production only). Supported values:
 	/// latency – adds an artificial delay (see latencyMs)
-	/// exception – throws an unhandled exception on every buzz
+	/// exception – intentionally disabled to avoid synthetic production error spikes
 	/// random – fails ~50 % of buzzes at random
 	/// timeout – simulates a long-running request that eventually times out
 	/// Use: ?chaos=latency|exception|random|timeout
@@ -187,7 +188,17 @@
 			isSubmitting = true;
 			statusMessage = string.Empty;
 
-			await ApplySyntheticFailureAsync();
+			try
+			{
+				await ApplySyntheticFailureAsync();
+			}
+			catch (Exception ex)
+			{
+				Logger.LogWarning(ex, "Synthetic chaos mode failed for request; buzz aborted safely");
+				statusCssClass = "error";
+				statusMessage = $"Synthetic chaos blocked buzz: {ex.Message}";
+				return;
+			}
 
 			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
 			statusCssClass = "ok";
@@ -217,6 +228,14 @@
 			return;
 		}
 
+		// Chaos modes are for controlled testing only and must stay disabled in production.
+		// This is gated by ASPNETCORE_ENVIRONMENT (via IWebHostEnvironment).
+		if (HostEnvironment.IsProduction())
+		{
+			Logger.LogWarning("Ignoring synthetic chaos mode '{Mode}' in production", mode);
+			return;
+		}
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
@@ -234,8 +253,8 @@
 				}
 
 			case "exception":
-				Logger.LogError("Synthetic exception triggered");
-				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?chaos=exception");
+				Logger.LogWarning("Synthetic exception mode is disabled and will be ignored");
+				break;
 
 			case "random":
 				{
