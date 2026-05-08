@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment HostEnvironment
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosOptions> ChaosConfig
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -217,6 +219,25 @@
 			return;
 		}
 
+		// Chaos mode must never run in Production, and must be explicitly enabled via configuration.
+		// Both checks are intentional defense-in-depth: the environment guard is a hard safety net for
+		// Production deployments, while the feature flag allows per-environment opt-in during testing.
+		if (HostEnvironment.IsProduction())
+		{
+			Logger.LogWarning(
+				"Chaos mode activation blocked: chaos mode is not permitted in the Production environment (requested mode: {FailureMode})",
+				SanitizeChaosMode(mode));
+			return;
+		}
+
+		if (!ChaosConfig.Value.Enabled)
+		{
+			Logger.LogWarning(
+				"Chaos mode activation blocked: Chaos:Enabled is false in configuration (requested mode: {FailureMode})",
+				SanitizeChaosMode(mode));
+			return;
+		}
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
@@ -272,6 +293,13 @@
 				break;
 		}
 	}
+
+	/// <summary>
+	/// Sanitizes a user-supplied chaos mode value for safe inclusion in log messages,
+	/// stripping any characters that could be used for log injection attacks.
+	/// </summary>
+	private static string SanitizeChaosMode(string mode) =>
+		System.Text.RegularExpressions.Regex.Replace(mode, @"[^a-z0-9_\-]", "?");
 
 	private sealed class LeadCaptureForm
 	{
