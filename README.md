@@ -29,6 +29,8 @@ Then browse to the URL shown in the console.
 
 Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
+> Chaos modes are disabled in Production. If a `chaos` query parameter is provided in Production, it is ignored and a warning is logged.
+
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
 | `latency`   | Adds an artificial delay before the buzz (default 3000 ms; override with `&latencyMs=<ms>`) |
