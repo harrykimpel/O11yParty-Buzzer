@@ -25,14 +25,14 @@ public sealed class BlazorCircuitMonitor
         _openCircuits.TryAdd(circuit, 0);
         _connectedCircuits.TryAdd(circuit, 0);
         _disconnectedCircuits.TryRemove(circuit, out _);
-        Interlocked.Exchange(ref _lastConnectionUpTicks, DateTimeOffset.UtcNow.UtcTicks);
+        Interlocked.Exchange(ref _lastConnectionUpTicks, DateTimeOffset.UtcNow.Ticks);
     }
 
     public void OnConnectionDown(Circuit circuit)
     {
         _connectedCircuits.TryRemove(circuit, out _);
         _disconnectedCircuits.TryAdd(circuit, 0);
-        Interlocked.Exchange(ref _lastConnectionDownTicks, DateTimeOffset.UtcNow.UtcTicks);
+        Interlocked.Exchange(ref _lastConnectionDownTicks, DateTimeOffset.UtcNow.Ticks);
     }
 
     public BlazorCircuitSnapshot GetSnapshot()
