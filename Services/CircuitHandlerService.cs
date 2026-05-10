@@ -6,44 +6,41 @@ public sealed class CircuitHandlerService(
     ILogger<CircuitHandlerService> logger,
     BlazorCircuitMonitor circuitMonitor) : CircuitHandler
 {
-    private readonly ILogger<CircuitHandlerService> _logger = logger;
-    private readonly BlazorCircuitMonitor _circuitMonitor = circuitMonitor;
-
     public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        _circuitMonitor.OnCircuitOpened(circuit);
+        circuitMonitor.OnCircuitOpened(circuit);
         LogCircuitState("opened");
         return Task.CompletedTask;
     }
 
     public override Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        _circuitMonitor.OnCircuitClosed(circuit);
+        circuitMonitor.OnCircuitClosed(circuit);
         LogCircuitState("closed");
         return Task.CompletedTask;
     }
 
     public override Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        _circuitMonitor.OnConnectionUp(circuit);
+        circuitMonitor.OnConnectionUp(circuit);
         LogCircuitState("connected");
         return Task.CompletedTask;
     }
 
     public override Task OnConnectionDownAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        _circuitMonitor.OnConnectionDown(circuit);
+        circuitMonitor.OnConnectionDown(circuit);
         LogCircuitState("disconnected", isWarning: true);
         return Task.CompletedTask;
     }
 
     private void LogCircuitState(string transition, bool isWarning = false)
     {
-        var snapshot = _circuitMonitor.GetSnapshot();
+        var snapshot = circuitMonitor.GetSnapshot();
 
         if (isWarning)
         {
-            _logger.LogWarning(
+            logger.LogWarning(
                 "Blazor circuit {Transition}. OpenCircuits: {OpenCircuitCount}, ConnectedCircuits: {ConnectedCircuitCount}, DisconnectedCircuits: {DisconnectedCircuitCount}",
                 transition,
                 snapshot.OpenCircuitCount,
@@ -53,7 +50,7 @@ public sealed class CircuitHandlerService(
             return;
         }
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Blazor circuit {Transition}. OpenCircuits: {OpenCircuitCount}, ConnectedCircuits: {ConnectedCircuitCount}, DisconnectedCircuits: {DisconnectedCircuitCount}",
             transition,
             snapshot.OpenCircuitCount,

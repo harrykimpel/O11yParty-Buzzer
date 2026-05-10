@@ -22,7 +22,6 @@ public sealed class BlazorCircuitMonitor
 
     public void OnConnectionUp(Circuit circuit)
     {
-        _openCircuits.TryAdd(circuit, 0);
         _connectedCircuits.TryAdd(circuit, 0);
         _disconnectedCircuits.TryRemove(circuit, out _);
         Interlocked.Exchange(ref _lastConnectionUpTicks, DateTimeOffset.UtcNow.Ticks);
