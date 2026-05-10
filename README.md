@@ -25,6 +25,24 @@ dotnet run
 
 Then browse to the URL shown in the console.
 
+## Blazor connection resiliency
+
+The app now configures the Blazor Server/SignalR connection settings from the `BlazorServer` section in `appsettings.json`:
+
+- `ClientTimeoutInterval`: `00:00:30`
+- `KeepAliveInterval`: `00:00:15`
+- `HandshakeTimeout`: `00:00:15`
+- `DisconnectedCircuitMaxRetained`: `100`
+- `DisconnectedCircuitRetentionPeriod`: `00:03:00`
+- `JSInteropDefaultCallTimeout`: `00:01:00`
+
+Health endpoints are available at:
+
+- `/health/live` — liveness probe
+- `/health/ready` — readiness probe including Blazor circuit health
+
+For AWS App Runner / load balancers fronting the app, set the WebSocket idle timeout to at least **120 seconds** so it comfortably exceeds the application's keep-alive cadence and avoids premature connection termination.
+
 ## Synthetic Failure Injection
 
 Append `?chaos=<mode>` to the URL to simulate failure conditions:
