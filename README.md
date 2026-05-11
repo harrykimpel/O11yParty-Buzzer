@@ -38,6 +38,12 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 Example: `http://localhost:5071/?chaos=random`
 
+### Chaos Safety Controls
+
+- Chaos injection is **always blocked in Production** (`ASPNETCORE_ENVIRONMENT=Production`).
+- In non-production environments, chaos injection is enabled by default.
+- Set `ENABLE_CHAOS_TESTING=false` to disable chaos injection without code changes.
+
 ## Event Payload
 
 A single event object is sent with fields:

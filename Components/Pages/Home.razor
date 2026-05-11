@@ -81,6 +81,10 @@
 	private static readonly System.Text.RegularExpressions.Regex BusinessEmailRegex = new(
 		@"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
 		System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+	private const string EnableChaosTestingEnvVar = "ENABLE_CHAOS_TESTING";
+	private const string AspNetCoreEnvironmentEnvVar = "ASPNETCORE_ENVIRONMENT";
+	private const string DotNetEnvironmentEnvVar = "DOTNET_ENVIRONMENT";
+	private const string LegacyEnvironmentEnvVar = "ENVIRONMENT";
 
 	private string teamName = string.Empty;
 	private string statusMessage = string.Empty;
@@ -98,6 +102,9 @@
 	/// random – fails ~50 % of buzzes at random
 	/// timeout – simulates a long-running request that eventually times out
 	/// Use: ?chaos=latency|exception|random|timeout
+	/// Guardrails:
+	/// chaos modes are always blocked in Production
+	/// and can be globally disabled in non-production with ENABLE_CHAOS_TESTING=false.
 	/// </summary>
 	[SupplyParameterFromQuery(Name = "chaos")]
 	public string? FailureMode { get; set; }
@@ -199,6 +206,13 @@
 		}
 		catch (Exception ex)
 		{
+			var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
+			Logger.LogError(ex,
+				string.IsNullOrEmpty(mode)
+					? "Buzz submission failed with no chaos mode requested"
+					: "Buzz submission failed while chaos mode '{FailureMode}' was requested",
+				mode);
+
 			statusCssClass = "error";
 			statusMessage = $"Could not send buzz event: {ex.Message}";
 		}
@@ -220,6 +234,33 @@
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
+		transaction
+			.AddCustomAttribute("syntheticChaosRequested", true)
+			.AddCustomAttribute("syntheticChaosEnvironment", GetEnvironmentName())
+			.AddCustomAttribute("syntheticChaosFeatureEnabled", IsChaosFeatureEnabled());
+
+		if (IsProductionEnvironment())
+		{
+			transaction
+				.AddCustomAttribute("syntheticChaosAllowed", false)
+				.AddCustomAttribute("syntheticChaosBlockReason", "production_environment");
+			Logger.LogWarning("Synthetic failure mode '{FailureMode}' requested but blocked in production", mode);
+			return;
+		}
+
+		if (!IsChaosFeatureEnabled())
+		{
+			transaction
+				.AddCustomAttribute("syntheticChaosAllowed", false)
+				.AddCustomAttribute("syntheticChaosBlockReason", "feature_flag_disabled");
+			Logger.LogInformation(
+				"Synthetic failure mode '{FailureMode}' requested but blocked by {FeatureFlag}=false",
+				mode,
+				EnableChaosTestingEnvVar);
+			return;
+		}
+
+		transaction.AddCustomAttribute("syntheticChaosAllowed", true);
 		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)
@@ -271,6 +312,29 @@
 				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
 				break;
 		}
+	}
+
+	/// <summary>
+	/// Chaos testing is permanently disallowed in Production.
+	/// In non-production environments, it is enabled by default and can be disabled with ENABLE_CHAOS_TESTING=false.
+	/// </summary>
+	private static bool IsChaosFeatureEnabled()
+	{
+		var configured = System.Environment.GetEnvironmentVariable(EnableChaosTestingEnvVar);
+		return !bool.TryParse(configured, out var enabled) || enabled;
+	}
+
+	private static bool IsProductionEnvironment()
+	{
+		return string.Equals(GetEnvironmentName(), "Production", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static string GetEnvironmentName()
+	{
+		return System.Environment.GetEnvironmentVariable(AspNetCoreEnvironmentEnvVar)
+			?? System.Environment.GetEnvironmentVariable(DotNetEnvironmentEnvVar)
+			?? System.Environment.GetEnvironmentVariable(LegacyEnvironmentEnvVar)
+			?? "Unknown";
 	}
 
 	private sealed class LeadCaptureForm
