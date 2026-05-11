@@ -40,7 +40,7 @@ Example: `http://localhost:5071/?chaos=random`
 
 Chaos mode is controlled with configuration:
 
-- `Chaos__Enabled` (default `true`)
+- `Chaos__Enabled` (default `false`)
 - `Chaos__AllowInProduction` (default `false`)
 
 In Production, chaos is blocked unless **both** flags are explicitly set to `true`.

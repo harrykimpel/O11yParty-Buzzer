@@ -92,6 +92,8 @@
 	private bool isLeadCaptured;
 	private string leadFormError = string.Empty;
 	private readonly LeadCaptureForm leadForm = new();
+	private const string ChaosEnabledKey = "Chaos:Enabled";
+	private const string ChaosAllowInProductionKey = "Chaos:AllowInProduction";
 
 	/// <summary>
 	/// Synthetic failure mode. Supported values:
@@ -224,23 +226,20 @@
 		transaction.AddCustomAttribute("syntheticChaosTraffic", true);
 		transaction.AddCustomAttribute("syntheticFailureModeRequested", mode);
 
-		using var logScope = Logger.BeginScope(new Dictionary<string, object?>
-		{
-			["chaosTraffic"] = true,
-			["chaosMode"] = mode,
-			["environment"] = Environment.EnvironmentName
-		});
-
-		if (!IsChaosModeAllowed(mode, out var blockReason))
+		if (!IsChaosModeAllowed(out var blockReason))
 		{
 			transaction.AddCustomAttribute("syntheticChaosBlocked", true);
 			transaction.AddCustomAttribute("syntheticChaosBlockReason", blockReason);
-			Logger.LogWarning("Synthetic chaos request ignored: {Reason}", blockReason);
+			Logger.LogWarning(
+				"Synthetic chaos request ignored. Mode={Mode}, Environment={Environment}, Reason={Reason}",
+				mode,
+				Environment.EnvironmentName,
+				blockReason);
 			return;
 		}
 
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Synthetic failure mode active: {FailureMode}, Environment={Environment}", mode, Environment.EnvironmentName);
 
 		switch (mode)
 		{
@@ -293,20 +292,20 @@
 		}
 	}
 
-	private bool IsChaosModeAllowed(string mode, out string reason)
+	private bool IsChaosModeAllowed(out string reason)
 	{
-		var chaosEnabled = Configuration.GetValue<bool?>("Chaos:Enabled");
-		var allowInProduction = Configuration.GetValue<bool>("Chaos:AllowInProduction");
+		var chaosEnabled = Configuration.GetValue(ChaosEnabledKey, false);
+		var allowInProduction = Configuration.GetValue(ChaosAllowInProductionKey, false);
 
-		if (chaosEnabled == false)
+		if (!chaosEnabled)
 		{
 			reason = "Chaos feature flag is disabled";
 			return false;
 		}
 
-		if (Environment.IsProduction() && (!allowInProduction || chaosEnabled != true))
+		if (Environment.IsProduction() && !allowInProduction)
 		{
-			reason = $"Chaos mode '{mode}' is blocked in Production unless Chaos:Enabled=true and Chaos:AllowInProduction=true";
+			reason = "Chaos mode is blocked in Production unless Chaos:AllowInProduction=true";
 			return false;
 		}
 
