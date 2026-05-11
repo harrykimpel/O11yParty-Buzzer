@@ -38,6 +38,13 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 Example: `http://localhost:5071/?chaos=random`
 
+Chaos mode is controlled with configuration:
+
+- `Chaos__Enabled` (default `true`)
+- `Chaos__AllowInProduction` (default `false`)
+
+In Production, chaos is blocked unless **both** flags are explicitly set to `true`.
+
 ## Event Payload
 
 A single event object is sent with fields:
