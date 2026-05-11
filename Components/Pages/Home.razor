@@ -85,6 +85,7 @@
 	private const string AspNetCoreEnvironmentEnvVar = "ASPNETCORE_ENVIRONMENT";
 	private const string DotNetEnvironmentEnvVar = "DOTNET_ENVIRONMENT";
 	private const string LegacyEnvironmentEnvVar = "ENVIRONMENT";
+	private const string UnknownEnvironmentName = "Unknown";
 
 	private string teamName = string.Empty;
 	private string statusMessage = string.Empty;
@@ -207,11 +208,12 @@
 		catch (Exception ex)
 		{
 			var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
+			var safeMode = SanitizeForLog(mode);
 			Logger.LogError(ex,
 				string.IsNullOrEmpty(mode)
 					? "Buzz submission failed with no chaos mode requested"
 					: "Buzz submission failed while chaos mode '{Mode}' was requested",
-				mode);
+				safeMode);
 
 			statusCssClass = "error";
 			statusMessage = $"Could not send buzz event: {ex.Message}";
@@ -233,35 +235,56 @@
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
+		var environmentName = GetEnvironmentName();
+		var isChaosFeatureEnabled = IsChaosFeatureEnabled(out var isInvalidChaosFeatureFlagValue, out var chaosFeatureFlagValue);
+		var safeMode = SanitizeForLog(mode);
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
 		transaction
 			.AddCustomAttribute("syntheticChaosRequested", true)
-			.AddCustomAttribute("syntheticChaosEnvironment", GetEnvironmentName())
-			.AddCustomAttribute("syntheticChaosFeatureEnabled", IsChaosFeatureEnabled());
+			.AddCustomAttribute("syntheticChaosEnvironment", environmentName)
+			.AddCustomAttribute("syntheticChaosFeatureEnabled", isChaosFeatureEnabled);
 
-		if (IsProductionEnvironment())
+		if (isInvalidChaosFeatureFlagValue)
+		{
+			Logger.LogWarning(
+				"Invalid {FeatureFlag} value '{ConfiguredValue}'. Defaulting to enabled for non-production chaos testing",
+				EnableChaosTestingEnvVar,
+				SanitizeForLog(chaosFeatureFlagValue));
+		}
+
+		if (IsChaosBlockedByEnvironment(environmentName, out var blockReason))
 		{
 			transaction
 				.AddCustomAttribute("syntheticChaosAllowed", false)
-				.AddCustomAttribute("syntheticChaosBlockReason", "production_environment");
-			Logger.LogWarning("Synthetic failure mode '{Mode}' requested but blocked in production", mode);
+				.AddCustomAttribute("syntheticChaosBlockReason", blockReason);
+
+			if (string.Equals(environmentName, UnknownEnvironmentName, StringComparison.OrdinalIgnoreCase))
+			{
+				Logger.LogWarning(
+					"Synthetic failure mode '{Mode}' requested but blocked because environment could not be determined",
+					safeMode);
+			}
+			else
+			{
+				Logger.LogWarning("Synthetic failure mode '{Mode}' requested but blocked in production", safeMode);
+			}
 			return;
 		}
 
-		if (!IsChaosFeatureEnabled())
+		if (!isChaosFeatureEnabled)
 		{
 			transaction
 				.AddCustomAttribute("syntheticChaosAllowed", false)
 				.AddCustomAttribute("syntheticChaosBlockReason", "feature_flag_disabled");
 			Logger.LogInformation(
 				"Synthetic failure mode '{Mode}' requested but blocked by {FeatureFlag}=false",
-				mode,
+				safeMode,
 				EnableChaosTestingEnvVar);
 			return;
 		}
 
 		transaction.AddCustomAttribute("syntheticChaosAllowed", true);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Synthetic failure mode active: {Mode}", safeMode);
 
 		switch (mode)
 		{
@@ -318,20 +341,40 @@
 	/// Chaos testing is permanently disallowed in Production.
 	/// In non-production environments, it is enabled by default and can be disabled with ENABLE_CHAOS_TESTING=false.
 	/// </summary>
-	private static bool IsChaosFeatureEnabled()
+	private static bool IsChaosFeatureEnabled(out bool hasInvalidValue, out string? configuredValue)
 	{
-		var configured = System.Environment.GetEnvironmentVariable(EnableChaosTestingEnvVar);
-		if (!bool.TryParse(configured, out var enabled))
+		configuredValue = System.Environment.GetEnvironmentVariable(EnableChaosTestingEnvVar);
+		hasInvalidValue = false;
+
+		if (!bool.TryParse(configuredValue, out var enabled))
 		{
+			if (!string.IsNullOrWhiteSpace(configuredValue))
+			{
+				hasInvalidValue = true;
+			}
+
 			return true;
 		}
 
 		return enabled;
 	}
 
-	private static bool IsProductionEnvironment()
+	private static bool IsChaosBlockedByEnvironment(string environmentName, out string blockReason)
 	{
-		return string.Equals(GetEnvironmentName(), "Production", StringComparison.OrdinalIgnoreCase);
+		if (string.Equals(environmentName, UnknownEnvironmentName, StringComparison.OrdinalIgnoreCase))
+		{
+			blockReason = "unknown_environment";
+			return true;
+		}
+
+		if (string.Equals(environmentName, "Production", StringComparison.OrdinalIgnoreCase))
+		{
+			blockReason = "production_environment";
+			return true;
+		}
+
+		blockReason = string.Empty;
+		return false;
 	}
 
 	private static string GetEnvironmentName()
@@ -339,7 +382,20 @@
 		return System.Environment.GetEnvironmentVariable(AspNetCoreEnvironmentEnvVar)
 			?? System.Environment.GetEnvironmentVariable(DotNetEnvironmentEnvVar)
 			?? System.Environment.GetEnvironmentVariable(LegacyEnvironmentEnvVar)
-			?? "Unknown";
+			?? UnknownEnvironmentName;
+	}
+
+	private static string SanitizeForLog(string? value)
+	{
+		if (string.IsNullOrEmpty(value))
+		{
+			return string.Empty;
+		}
+
+		const int maxLength = 120;
+		var sanitized = value.Replace("\r", "\\r", StringComparison.Ordinal)
+			.Replace("\n", "\\n", StringComparison.Ordinal);
+		return sanitized.Length <= maxLength ? sanitized : $"{sanitized[..maxLength]}...";
 	}
 
 	private sealed class LeadCaptureForm
