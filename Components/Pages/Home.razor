@@ -210,7 +210,7 @@
 			Logger.LogError(ex,
 				string.IsNullOrEmpty(mode)
 					? "Buzz submission failed with no chaos mode requested"
-					: "Buzz submission failed while chaos mode '{FailureMode}' was requested",
+					: "Buzz submission failed while chaos mode '{Mode}' was requested",
 				mode);
 
 			statusCssClass = "error";
@@ -244,7 +244,7 @@
 			transaction
 				.AddCustomAttribute("syntheticChaosAllowed", false)
 				.AddCustomAttribute("syntheticChaosBlockReason", "production_environment");
-			Logger.LogWarning("Synthetic failure mode '{FailureMode}' requested but blocked in production", mode);
+			Logger.LogWarning("Synthetic failure mode '{Mode}' requested but blocked in production", mode);
 			return;
 		}
 
@@ -254,7 +254,7 @@
 				.AddCustomAttribute("syntheticChaosAllowed", false)
 				.AddCustomAttribute("syntheticChaosBlockReason", "feature_flag_disabled");
 			Logger.LogInformation(
-				"Synthetic failure mode '{FailureMode}' requested but blocked by {FeatureFlag}=false",
+				"Synthetic failure mode '{Mode}' requested but blocked by {FeatureFlag}=false",
 				mode,
 				EnableChaosTestingEnvVar);
 			return;
@@ -321,7 +321,12 @@
 	private static bool IsChaosFeatureEnabled()
 	{
 		var configured = System.Environment.GetEnvironmentVariable(EnableChaosTestingEnvVar);
-		return !bool.TryParse(configured, out var enabled) || enabled;
+		if (!bool.TryParse(configured, out var enabled))
+		{
+			return true;
+		}
+
+		return enabled;
 	}
 
 	private static bool IsProductionEnvironment()
