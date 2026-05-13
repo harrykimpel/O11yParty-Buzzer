@@ -27,7 +27,7 @@ public sealed class BlazorCircuitMetricsHandler(ILogger<BlazorCircuitMetricsHand
         if (_circuitOpenedAt.TryRemove(circuit.Id, out var openedAt))
         {
             var lifetime = DateTimeOffset.UtcNow - openedAt;
-            NewRelic.Api.Agent.NewRelic.RecordResponseTimeMetric("Custom/Blazor/CircuitLifetime", (long)lifetime.TotalMilliseconds);
+            NewRelic.Api.Agent.NewRelic.RecordResponseTimeMetric("Custom/Blazor/CircuitDuration", (long)lifetime.TotalMilliseconds);
         }
 
         var activeCircuits = DecrementWithoutGoingNegative(ref _activeCircuits);
@@ -51,7 +51,7 @@ public sealed class BlazorCircuitMetricsHandler(ILogger<BlazorCircuitMetricsHand
         if (_connectionOpenedAt.TryRemove(circuit.Id, out var connectedAt))
         {
             var lifetime = DateTimeOffset.UtcNow - connectedAt;
-            NewRelic.Api.Agent.NewRelic.RecordResponseTimeMetric("Custom/Blazor/ConnectionLifetime", (long)lifetime.TotalMilliseconds);
+            NewRelic.Api.Agent.NewRelic.RecordResponseTimeMetric("Custom/Blazor/ConnectionDuration", (long)lifetime.TotalMilliseconds);
         }
 
         var activeConnections = DecrementWithoutGoingNegative(ref _activeConnections);

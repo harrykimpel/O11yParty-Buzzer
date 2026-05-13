@@ -42,8 +42,8 @@ Chaos and circuit telemetry now emits these New Relic metrics to help monitor Bl
 
 - `Custom/Blazor/ActiveCircuits`
 - `Custom/Blazor/ActiveConnections`
-- `Custom/Blazor/CircuitLifetime`
-- `Custom/Blazor/ConnectionLifetime`
+- `Custom/Blazor/CircuitDuration`
+- `Custom/Blazor/ConnectionDuration`
 
 The app also enforces a short publish timeout for outbound New Relic calls and rate-limits bursts against `/` and `/_blazor` to reduce load spikes.
 

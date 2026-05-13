@@ -236,11 +236,20 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
-		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
-		if (string.IsNullOrEmpty(mode))
+		var rawMode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
+		if (string.IsNullOrEmpty(rawMode))
 		{
 			return;
 		}
+
+		var mode = rawMode switch
+		{
+			"latency" => "latency",
+			"exception" => "exception",
+			"random" => "random",
+			"timeout" => "timeout",
+			_ => "unknown"
+		};
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
@@ -253,7 +262,6 @@
 
 		transaction.AddCustomAttribute("isChaosTest", true);
 		transaction.AddCustomAttribute("chaosType", mode);
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
 		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)
