@@ -83,6 +83,14 @@
 	private static readonly System.Text.RegularExpressions.Regex BusinessEmailRegex = new(
 		@"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
 		System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+	private static readonly HashSet<string> SupportedChaosModes =
+	[
+		"latency",
+		"exception",
+		"random",
+		"timeout"
+	];
+	private const string TestingEnvironmentName = "Testing";
 
 	private string teamName = string.Empty;
 	private string statusMessage = string.Empty;
@@ -221,13 +229,22 @@
 			return;
 		}
 
+		var isSupportedMode = SupportedChaosModes.Contains(mode);
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction
 			.AddCustomAttribute("chaosTestRequested", true)
 			.AddCustomAttribute("chaosFeatureEnabled", ChaosTestingOptionsAccessor.Value.Enabled)
 			.AddCustomAttribute("chaosEnvironment", HostEnvironment.EnvironmentName)
-			.AddCustomAttribute("chaosType", mode);
+			.AddCustomAttribute("chaosModeRecognized", isSupportedMode)
+			.AddCustomAttribute("chaosType", isSupportedMode ? mode : "unknown");
+
+		if (!isSupportedMode)
+		{
+			Logger.LogWarning("Unknown synthetic failure mode ignored.");
+			return;
+		}
 
 		if (!IsChaosTestingEnabled())
 		{
@@ -296,7 +313,7 @@
 		return ChaosTestingOptionsAccessor.Value.Enabled
 			&& (HostEnvironment.IsDevelopment()
 				|| HostEnvironment.IsStaging()
-				|| HostEnvironment.IsEnvironment("Testing"));
+				|| HostEnvironment.IsEnvironment(TestingEnvironmentName));
 	}
 
 	private sealed class LeadCaptureForm
