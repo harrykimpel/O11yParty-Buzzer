@@ -229,33 +229,38 @@
 			return;
 		}
 
+		var modeForLogs = mode switch
+		{
+			"latency" => "latency",
+			"exception" => "exception",
+			"random" => "random",
+			"timeout" => "timeout",
+			_ => "unknown"
+		};
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("syntheticFailureMode", mode)
-			.AddCustomAttribute("syntheticFailureRequested", true);
+		transaction.AddCustomAttribute("syntheticFailureMode", mode);
+		transaction.AddCustomAttribute("syntheticFailureRequested", true);
 
 		if (!ChaosOptions.Value.Enabled)
 		{
-			transaction.AddCustomAttribute("syntheticFailureBlocked", true)
-				.AddCustomAttribute("syntheticFailureBlockedReason", "disabled");
-			Logger.LogInformation(
-				"Synthetic failure mode '{FailureMode}' requested but chaos testing is disabled by configuration.",
-				mode);
+			transaction.AddCustomAttribute("syntheticFailureBlocked", true);
+			transaction.AddCustomAttribute("syntheticFailureBlockedReason", "disabled");
+			Logger.LogInformation("Synthetic failure mode request ignored because chaos testing is disabled by configuration.");
 			return;
 		}
 
 		if (HostEnvironment.IsProduction() && !ChaosOptions.Value.AllowInProduction)
 		{
-			transaction.AddCustomAttribute("syntheticFailureBlocked", true)
-				.AddCustomAttribute("syntheticFailureBlockedReason", "production");
-			Logger.LogWarning(
-				"Blocked synthetic failure mode '{FailureMode}' in Production environment.",
-				mode);
+			transaction.AddCustomAttribute("syntheticFailureBlocked", true);
+			transaction.AddCustomAttribute("syntheticFailureBlockedReason", "production");
+			Logger.LogWarning("Blocked synthetic failure mode request in Production environment.");
 			return;
 		}
 
 		transaction.AddCustomAttribute("syntheticFailureInjected", true);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", modeForLogs);
 
 		switch (mode)
 		{
@@ -303,7 +308,7 @@
 				}
 
 			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning("Unknown synthetic failure mode requested — ignored.");
 				break;
 		}
 	}
