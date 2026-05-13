@@ -19,6 +19,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 var app = builder.Build();
+var chaosProtectionLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ChaosProtection");
 
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
@@ -27,14 +28,10 @@ app.Use(async (context, next) =>
 {
     if (!app.Environment.IsDevelopment() && context.Request.Query.ContainsKey("chaos"))
     {
-        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("ChaosProtection");
-        var mode = context.Request.Query["chaos"].ToString();
-
-        logger.LogWarning(
-            "Rejected chaos query parameter for {Path} in {Environment}. Requested mode: {Mode}",
+        chaosProtectionLogger.LogWarning(
+            "Rejected chaos query parameter for {Path} in {Environment}",
             context.Request.Path,
-            app.Environment.EnvironmentName,
-            string.IsNullOrWhiteSpace(mode) ? "<empty>" : mode);
+            app.Environment.EnvironmentName);
 
         await TypedResults.Problem(
             statusCode: StatusCodes.Status400BadRequest,

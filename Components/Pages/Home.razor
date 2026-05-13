@@ -197,7 +197,7 @@
 			}
 			catch (SyntheticChaosException ex)
 			{
-				Logger.LogWarning(ex, "Handled synthetic chaos mode '{FailureMode}'", (FailureMode ?? string.Empty).Trim());
+				Logger.LogWarning(ex, "Handled synthetic chaos failure.");
 				statusCssClass = "error";
 				statusMessage = ex.UserMessage;
 				return;
@@ -213,7 +213,7 @@
 		}
 		catch (Exception ex)
 		{
-			Logger.LogError(ex, "Could not publish buzz event for team {TeamName}", normalizedTeamName);
+			Logger.LogError(ex, "Could not publish buzz event.");
 			statusCssClass = "error";
 			statusMessage = $"Could not send buzz event: {ex.Message}";
 		}
