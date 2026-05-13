@@ -67,18 +67,13 @@ public sealed class BlazorCircuitMetricsHandler(ILogger<BlazorCircuitMetricsHand
 
     private static int DecrementWithoutGoingNegative(ref int value)
     {
-        while (true)
+        var nextValue = Interlocked.Decrement(ref value);
+        if (nextValue >= 0)
         {
-            var current = Volatile.Read(ref value);
-            if (current == 0)
-            {
-                return 0;
-            }
-
-            if (Interlocked.CompareExchange(ref value, current - 1, current) == current)
-            {
-                return current - 1;
-            }
+            return nextValue;
         }
+
+        Interlocked.Exchange(ref value, 0);
+        return 0;
     }
 }

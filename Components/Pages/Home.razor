@@ -92,7 +92,7 @@
 	private bool isSubmittingLeadCapture;
 	private bool isLeadCaptured;
 	private string leadFormError = string.Empty;
-	private DateTimeOffset lastBuzzAttemptUtc = DateTimeOffset.MinValue;
+	private long lastBuzzAttemptTicks;
 	private readonly LeadCaptureForm leadForm = new();
 
 	/// <summary>
@@ -184,6 +184,11 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task BuzzAsync()
 	{
+		if (isSubmitting)
+		{
+			return;
+		}
+
 		var normalizedTeamName = teamName.Trim();
 		if (string.IsNullOrWhiteSpace(normalizedTeamName))
 		{
@@ -192,8 +197,16 @@
 			return;
 		}
 
-		var now = DateTimeOffset.UtcNow;
-		if (now - lastBuzzAttemptUtc < BuzzThrottleWindow)
+		var nowTicks = DateTimeOffset.UtcNow.Ticks;
+		var previousBuzzTicks = Interlocked.Read(ref lastBuzzAttemptTicks);
+		if (nowTicks - previousBuzzTicks < BuzzThrottleWindow.Ticks)
+		{
+			statusCssClass = "error";
+			statusMessage = "Please wait a moment before buzzing again.";
+			return;
+		}
+
+		if (Interlocked.CompareExchange(ref lastBuzzAttemptTicks, nowTicks, previousBuzzTicks) != previousBuzzTicks)
 		{
 			statusCssClass = "error";
 			statusMessage = "Please wait a moment before buzzing again.";
@@ -202,7 +215,6 @@
 
 		try
 		{
-			lastBuzzAttemptUtc = now;
 			isSubmitting = true;
 			statusMessage = string.Empty;
 
@@ -253,6 +265,13 @@
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
+		if (mode == "unknown")
+		{
+			Logger.LogWarning("Unknown synthetic failure mode ignored");
+			transaction.AddCustomAttribute("syntheticFailureModeIgnored", mode);
+			return;
+		}
+
 		if (HostEnvironment.IsProduction())
 		{
 			Logger.LogWarning("Ignoring synthetic failure mode '{FailureMode}' in production", mode);

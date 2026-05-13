@@ -47,10 +47,7 @@ builder.Services.AddRateLimiter(options =>
             return RateLimitPartition.GetNoLimiter("unlimited");
         }
 
-        var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].ToString();
-        var clientAddress = !string.IsNullOrWhiteSpace(forwardedFor)
-            ? forwardedFor.Split(',')[0].Trim()
-            : httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var clientAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
         return RateLimitPartition.GetSlidingWindowLimiter(
             partitionKey: $"buzzer:{clientAddress}",
