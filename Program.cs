@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
+const string ChaosProtectionLogCategory = "ChaosProtection";
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -19,7 +21,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 var app = builder.Build();
-var chaosProtectionLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ChaosProtection");
+var chaosProtectionLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(ChaosProtectionLogCategory);
 
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();

@@ -256,7 +256,7 @@
 				}
 
 			case "exception":
-				Logger.LogWarning("Synthetic exception triggered");
+				Logger.LogWarning("Synthetic exception triggered and will be handled by the buzzer UI.");
 				throw new SyntheticChaosException(
 					SyntheticFailureMessage,
 					"Synthetic failure: unhandled exception injected via ?chaos=exception");
@@ -267,7 +267,7 @@
 					transaction.AddCustomAttribute("syntheticChaosRoll", roll);
 					if (roll < 0.5)
 					{
-						Logger.LogWarning("Synthetic random failure (roll={Roll:F2})", roll);
+						Logger.LogWarning("Synthetic random failure occurred and will be handled by the buzzer UI (roll={Roll:F2})", roll);
 						throw new SyntheticChaosException(
 							SyntheticFailureMessage,
 							$"Synthetic failure: random mode rolled {roll:F2} (< 0.5) — buzz dropped");
