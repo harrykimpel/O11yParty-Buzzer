@@ -2,6 +2,8 @@ bin/*
 bin/
 obj/*
 obj/
+**/bin/
+**/obj/
 .DS_Store
 .vs/
 *.user
