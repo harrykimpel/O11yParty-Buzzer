@@ -27,7 +27,7 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+Append `?chaos=<mode>` to the URL to simulate failure conditions in non-production environments only. When `ASPNETCORE_ENVIRONMENT=Production`, chaos parameters are ignored so synthetic failures can't be triggered against live traffic.
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
@@ -37,6 +37,15 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 | `timeout`   | Simulates a long-running request that times out after 35 s    |
 
 Example: `http://localhost:5071/?chaos=random`
+
+Chaos and circuit telemetry now emits these New Relic metrics to help monitor Blazor Server health:
+
+- `Custom/Blazor/ActiveCircuits`
+- `Custom/Blazor/ActiveConnections`
+- `Custom/Blazor/CircuitLifetime`
+- `Custom/Blazor/ConnectionLifetime`
+
+The app also enforces a short publish timeout for outbound New Relic calls and rate-limits bursts against `/` and `/_blazor` to reduce load spikes.
 
 ## Event Payload
 
