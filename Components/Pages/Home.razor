@@ -227,21 +227,18 @@
 			.AddCustomAttribute("chaosTestRequested", true)
 			.AddCustomAttribute("chaosFeatureEnabled", ChaosTestingOptionsAccessor.Value.Enabled)
 			.AddCustomAttribute("chaosEnvironment", HostEnvironment.EnvironmentName)
-			.AddCustomAttribute("chaosType", mode)
-			.AddCustomAttribute("syntheticFailureMode", mode);
+			.AddCustomAttribute("chaosType", mode);
 
 		if (!IsChaosTestingEnabled())
 		{
 			transaction.AddCustomAttribute("chaosTest", false);
 			Logger.LogWarning(
-				"Chaos mode '{FailureMode}' ignored because chaos testing is disabled for environment {EnvironmentName}.",
-				mode,
+				"Chaos mode ignored because chaos testing is disabled for environment {EnvironmentName}.",
 				HostEnvironment.EnvironmentName);
 			return;
 		}
 
 		transaction.AddCustomAttribute("chaosTest", true);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)
 		{
@@ -289,7 +286,7 @@
 				}
 
 			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning("Unknown synthetic failure mode ignored.");
 				break;
 		}
 	}
