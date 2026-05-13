@@ -27,7 +27,15 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+Synthetic failure injection is **disabled by default** and is never honored in `Production`.
+
+To enable chaos testing in non-production environments, set:
+
+```bash
+Chaos__Enabled=true
+```
+
+Then append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
