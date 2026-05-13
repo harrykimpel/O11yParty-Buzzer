@@ -27,7 +27,14 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+Synthetic failure injection is controlled by configuration:
+
+- `ChaosTesting__Enabled` (`false` by default, `true` in Development)
+- `ChaosTesting__AllowInProduction` (`false` by default)
+
+If chaos testing is disabled (or blocked in Production), any `?chaos=...` query parameter is ignored.
+
+When enabled, append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
