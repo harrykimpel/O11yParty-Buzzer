@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IConfiguration Configuration
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -214,6 +215,12 @@
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		if (!Configuration.GetValue<bool>("Chaos:Enabled"))
+		{
+			Logger.LogWarning("Chaos mode '{Mode}' requested but chaos is disabled in this environment — ignoring", mode);
 			return;
 		}
 
