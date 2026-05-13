@@ -23,6 +23,30 @@ var app = builder.Build();
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
 
+app.Use(async (context, next) =>
+{
+    if (!app.Environment.IsDevelopment() && context.Request.Query.ContainsKey("chaos"))
+    {
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("ChaosProtection");
+        var mode = context.Request.Query["chaos"].ToString();
+
+        logger.LogWarning(
+            "Rejected chaos query parameter for {Path} in {Environment}. Requested mode: {Mode}",
+            context.Request.Path,
+            app.Environment.EnvironmentName,
+            string.IsNullOrWhiteSpace(mode) ? "<empty>" : mode);
+
+        await TypedResults.Problem(
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Chaos engineering disabled",
+            detail: "The chaos query parameter is only available in Development environments.")
+            .ExecuteAsync(context);
+        return;
+    }
+
+    await next();
+});
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
@@ -41,3 +65,7 @@ app.MapRazorComponents<App>()
     .DisableAntiforgery();
 
 app.Run();
+
+public partial class Program
+{
+}

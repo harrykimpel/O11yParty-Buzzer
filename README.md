@@ -27,7 +27,7 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+In Development, append `?chaos=<mode>` to the URL to simulate failure conditions. Production requests that include the `chaos` query parameter are rejected with HTTP 400.
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
