@@ -217,6 +217,7 @@
 		{
 			return;
 		}
+		var safeModeForLog = O11yPartyBuzzer.Services.SyntheticFailureModePolicy.SanitizeForLog(mode);
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
@@ -225,11 +226,11 @@
 		if (!O11yPartyBuzzer.Services.SyntheticFailureModePolicy.IsEnabled(mode, HostEnvironment.IsProduction()))
 		{
 			transaction.AddCustomAttribute("syntheticFailureBlocked", true);
-			Logger.LogWarning("Synthetic failure mode '{FailureMode}' requested in production and ignored", mode);
+			Logger.LogWarning("Synthetic failure mode '{FailureMode}' requested in production and ignored", safeModeForLog);
 			return;
 		}
 
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", safeModeForLog);
 
 		switch (mode)
 		{
@@ -277,7 +278,7 @@
 				}
 
 			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", safeModeForLog);
 				break;
 		}
 	}

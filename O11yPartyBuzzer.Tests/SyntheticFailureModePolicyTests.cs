@@ -39,4 +39,12 @@ public sealed class SyntheticFailureModePolicyTests
 
         Assert.True(enabled);
     }
+
+    [Fact]
+    public void SanitizeForLog_ReplacesLineBreaks()
+    {
+        var sanitized = SyntheticFailureModePolicy.SanitizeForLog("except\r\nion");
+
+        Assert.Equal(@"except\r\nion", sanitized);
+    }
 }

@@ -11,4 +11,11 @@ public static class SyntheticFailureModePolicy
     {
         return !string.IsNullOrEmpty(normalizedMode) && !isProductionEnvironment;
     }
+
+    public static string SanitizeForLog(string value)
+    {
+        return value
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
+    }
 }
