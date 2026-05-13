@@ -27,7 +27,15 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+Chaos testing is disabled by default. To use it safely, enable `ChaosTesting__Enabled=true`
+only in non-production environments (`Development`, `Staging`, or `Testing`), then append
+`?chaos=<mode>` to the URL to simulate failure conditions.
+
+Example:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development ChaosTesting__Enabled=true dotnet run
+```
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|

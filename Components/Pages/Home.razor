@@ -1,7 +1,9 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosTestingOptions> ChaosTestingOptionsAccessor
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment HostEnvironment
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -92,7 +94,9 @@
 	private readonly LeadCaptureForm leadForm = new();
 
 	/// <summary>
-	/// Synthetic failure mode. Supported values:
+	/// Synthetic failure mode. This is a demo-only feature that stays disabled unless
+	/// ChaosTesting:Enabled=true and the app is running in Development, Staging, or Testing.
+	/// Supported values:
 	/// latency – adds an artificial delay (see latencyMs)
 	/// exception – throws an unhandled exception on every buzz
 	/// random – fails ~50 % of buzzes at random
@@ -219,7 +223,24 @@
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
+		transaction
+			.AddCustomAttribute("chaosTestRequested", true)
+			.AddCustomAttribute("chaosFeatureEnabled", ChaosTestingOptionsAccessor.Value.Enabled)
+			.AddCustomAttribute("chaosEnvironment", HostEnvironment.EnvironmentName)
+			.AddCustomAttribute("chaosType", mode)
+			.AddCustomAttribute("syntheticFailureMode", mode);
+
+		if (!IsChaosTestingEnabled())
+		{
+			transaction.AddCustomAttribute("chaosTest", false);
+			Logger.LogWarning(
+				"Chaos mode '{FailureMode}' ignored because chaos testing is disabled for environment {EnvironmentName}.",
+				mode,
+				HostEnvironment.EnvironmentName);
+			return;
+		}
+
+		transaction.AddCustomAttribute("chaosTest", true);
 		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)
@@ -271,6 +292,14 @@
 				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
 				break;
 		}
+	}
+
+	private bool IsChaosTestingEnabled()
+	{
+		return ChaosTestingOptionsAccessor.Value.Enabled
+			&& (HostEnvironment.IsDevelopment()
+				|| HostEnvironment.IsStaging()
+				|| HostEnvironment.IsEnvironment("Testing"));
 	}
 
 	private sealed class LeadCaptureForm
