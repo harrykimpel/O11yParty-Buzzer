@@ -27,6 +27,8 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
+Chaos endpoints are **disabled by default**. Set `NewRelic__ChaosEnabled=true` (or `"ChaosEnabled": true` in `appsettings.json`) to enable them.
+
 Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
@@ -37,6 +39,10 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 | `timeout`   | Simulates a long-running request that times out after 35 s    |
 
 Example: `http://localhost:5071/?chaos=random`
+
+All chaos requests are tagged with `chaos.enabled=true`, `chaos.type=<mode>`, and `error.synthetic=true` as New Relic custom attributes so they can be excluded from production alert conditions.
+
+See [CHAOS_TESTING.md](./CHAOS_TESTING.md) for full details including how to filter chaos traffic from alerts.
 
 ## Event Payload
 
