@@ -233,7 +233,7 @@
 		if (!ChaosGuard.TryAllow(mode, ChaosToken, out var blockReason))
 		{
 			Logger.LogInformation(
-				"[chaos] Chaos mode suppressed. chaos.mode={ChaosMode} chaos.suppressed=true chaos.reason={Reason}",
+				"[chaos] Chaos mode suppressed. chaos.mode={ChaosMode} chaos.blocked=true chaos.reason={Reason}",
 				safeMode, blockReason);
 			return;
 		}
@@ -241,7 +241,7 @@
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		transaction.AddCustomAttribute("chaos.synthetic", true);
+		transaction.AddCustomAttribute("syntheticChaos", true);
 		Logger.LogWarning(
 			"[chaos] Synthetic failure mode active. chaos.mode={ChaosMode} chaos.synthetic=true",
 			safeMode);

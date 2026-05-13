@@ -16,7 +16,8 @@ public sealed class ChaosOptions
 
     /// <summary>
     /// Environments in which chaos is permitted. Defaults to Development only.
-    /// Set to an empty array to allow in any environment (not recommended for production).
+    /// Set to an empty array to bypass environment restrictions (WARNING: allows chaos in any
+    /// environment, including production — use with caution).
     /// </summary>
     public string[] AllowedEnvironments { get; set; } = ["Development"];
 
