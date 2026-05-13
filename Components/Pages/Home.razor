@@ -220,6 +220,8 @@
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
+		transaction.AddCustomAttribute("isChaosTest", true);
+		transaction.AddCustomAttribute("chaosType", mode);
 		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)

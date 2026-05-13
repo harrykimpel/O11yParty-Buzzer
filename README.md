@@ -38,6 +38,27 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 Example: `http://localhost:5071/?chaos=random`
 
+### New Relic Custom Attributes
+
+Every chaos request adds the following custom attributes to the New Relic transaction:
+
+| Attribute            | Value                              | Purpose                                      |
+|----------------------|------------------------------------|----------------------------------------------|
+| `isChaosTest`        | `true`                             | Identifies the transaction as a chaos test   |
+| `chaosType`          | `latency`, `exception`, `random`, or `timeout` | The specific chaos mode in use |
+| `syntheticFailureMode` | same as `chaosType`              | Legacy attribute (kept for backwards compatibility) |
+
+Use these attributes to exclude chaos traffic from production alert conditions:
+
+```nrql
+SELECT (sum(apm.service.error.count) / sum(apm.service.transaction.duration)) * 100
+AS 'Error rate (%)'
+FROM Metric
+WHERE entity.guid IN ('<your-entity-guid>')
+AND (isChaosTest IS NULL OR isChaosTest = false)
+FACET appName
+```
+
 ## Event Payload
 
 A single event object is sent with fields:
