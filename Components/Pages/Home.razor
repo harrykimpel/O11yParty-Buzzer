@@ -92,6 +92,7 @@
 	private bool isSubmittingLeadCapture;
 	private bool isLeadCaptured;
 	private string leadFormError = string.Empty;
+	private int isSubmittingBuzz;
 	private long lastBuzzAttemptTicks;
 	private readonly LeadCaptureForm leadForm = new();
 
@@ -184,37 +185,28 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task BuzzAsync()
 	{
-		if (isSubmitting)
+		if (Interlocked.CompareExchange(ref isSubmittingBuzz, 1, 0) != 0)
 		{
-			return;
-		}
-
-		var normalizedTeamName = teamName.Trim();
-		if (string.IsNullOrWhiteSpace(normalizedTeamName))
-		{
-			statusCssClass = "error";
-			statusMessage = "Enter a team name before buzzing.";
-			return;
-		}
-
-		var nowTicks = DateTimeOffset.UtcNow.Ticks;
-		var previousBuzzTicks = Interlocked.Read(ref lastBuzzAttemptTicks);
-		if (nowTicks - previousBuzzTicks < BuzzThrottleWindow.Ticks)
-		{
-			statusCssClass = "error";
-			statusMessage = "Please wait a moment before buzzing again.";
-			return;
-		}
-
-		if (Interlocked.CompareExchange(ref lastBuzzAttemptTicks, nowTicks, previousBuzzTicks) != previousBuzzTicks)
-		{
-			statusCssClass = "error";
-			statusMessage = "Please wait a moment before buzzing again.";
 			return;
 		}
 
 		try
 		{
+			var normalizedTeamName = teamName.Trim();
+			if (string.IsNullOrWhiteSpace(normalizedTeamName))
+			{
+				statusCssClass = "error";
+				statusMessage = "Enter a team name before buzzing.";
+				return;
+			}
+
+			if (!TryReserveBuzzAttempt())
+			{
+				statusCssClass = "error";
+				statusMessage = "Please wait a moment before buzzing again.";
+				return;
+			}
+
 			isSubmitting = true;
 			statusMessage = string.Empty;
 
@@ -242,6 +234,7 @@
 		finally
 		{
 			isSubmitting = false;
+			Interlocked.Exchange(ref isSubmittingBuzz, 0);
 		}
 	}
 
@@ -331,6 +324,24 @@
 			default:
 				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
 				break;
+		}
+	}
+
+	private bool TryReserveBuzzAttempt()
+	{
+		var nowTicks = DateTimeOffset.UtcNow.Ticks;
+		while (true)
+		{
+			var previousBuzzTicks = Interlocked.Read(ref lastBuzzAttemptTicks);
+			if (nowTicks - previousBuzzTicks < BuzzThrottleWindow.Ticks)
+			{
+				return false;
+			}
+
+			if (Interlocked.CompareExchange(ref lastBuzzAttemptTicks, nowTicks, previousBuzzTicks) == previousBuzzTicks)
+			{
+				return true;
+			}
 		}
 	}
 

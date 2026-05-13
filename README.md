@@ -38,7 +38,7 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions in non-producti
 
 Example: `http://localhost:5071/?chaos=random`
 
-Chaos and circuit telemetry now emits these New Relic metrics to help monitor Blazor Server health:
+Chaos and circuit telemetry now emit these New Relic metrics to help monitor Blazor Server health:
 
 - `Custom/Blazor/ActiveCircuits`
 - `Custom/Blazor/ActiveConnections`
