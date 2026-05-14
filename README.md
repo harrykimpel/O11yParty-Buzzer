@@ -27,6 +27,9 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
+> [!WARNING]
+> Chaos modes are disabled when `ASPNETCORE_ENVIRONMENT=Production`.
+
 Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
