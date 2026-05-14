@@ -1,14 +1,20 @@
 using System.Net.Http.Json;
+using System.Diagnostics;
 using Microsoft.Extensions.Options;
 
 namespace O11yPartyBuzzer.Services;
 
 public sealed class NewRelicEventPublisher(
     HttpClient httpClient,
-    IOptions<NewRelicOptions> options) : INewRelicEventPublisher
+    IOptions<NewRelicOptions> options,
+    ILogger<NewRelicEventPublisher> logger) : INewRelicEventPublisher
 {
+    private readonly object _circuitBreakerLock = new();
     private readonly HttpClient _httpClient = httpClient;
+    private readonly ILogger<NewRelicEventPublisher> _logger = logger;
     private readonly NewRelicOptions _options = options.Value;
+    private int _consecutiveFailures;
+    private DateTimeOffset _circuitOpenUntilUtc = DateTimeOffset.MinValue;
 
     public async Task PublishBuzzAsync(string teamName, CancellationToken cancellationToken = default)
     {
@@ -33,8 +39,7 @@ public sealed class NewRelicEventPublisher(
             }
         });
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await SendEventAsync(request, _options.EventType, cancellationToken);
     }
 
     public async Task PublishLeadCaptureAsync(
@@ -96,8 +101,46 @@ public sealed class NewRelicEventPublisher(
             }
         });
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await SendEventAsync(request, _options.LeadCaptureEventType, cancellationToken);
+    }
+
+    private async Task SendEventAsync(HttpRequestMessage request, string eventType, CancellationToken cancellationToken)
+    {
+        if (TryGetCircuitOpenUntil(out var openUntil))
+        {
+            _logger.LogWarning(
+                "Skipping New Relic publish for {EventType}; circuit breaker is open until {CircuitOpenUntilUtc}",
+                eventType,
+                openUntil);
+            throw new InvalidOperationException("New Relic event publishing is temporarily unavailable. Please try again shortly.");
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            stopwatch.Stop();
+            MarkSuccess();
+            _logger.LogInformation(
+                "New Relic publish succeeded for {EventType} in {ElapsedMilliseconds}ms (status {StatusCode})",
+                eventType,
+                stopwatch.ElapsedMilliseconds,
+                (int)response.StatusCode);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            stopwatch.Stop();
+            MarkFailure(eventType, stopwatch.ElapsedMilliseconds, "timeout");
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            stopwatch.Stop();
+            MarkFailure(eventType, stopwatch.ElapsedMilliseconds, "http");
+            throw;
+        }
     }
 
     private void ValidateNewRelicConfiguration()
@@ -123,5 +166,55 @@ public sealed class NewRelicEventPublisher(
         };
 
         return $"https://{host}/v1/accounts/{accountId}/events";
+    }
+
+    private bool TryGetCircuitOpenUntil(out DateTimeOffset openUntilUtc)
+    {
+        lock (_circuitBreakerLock)
+        {
+            if (_circuitOpenUntilUtc > DateTimeOffset.UtcNow)
+            {
+                openUntilUtc = _circuitOpenUntilUtc;
+                return true;
+            }
+
+            openUntilUtc = DateTimeOffset.MinValue;
+            return false;
+        }
+    }
+
+    private void MarkSuccess()
+    {
+        lock (_circuitBreakerLock)
+        {
+            _consecutiveFailures = 0;
+            _circuitOpenUntilUtc = DateTimeOffset.MinValue;
+        }
+    }
+
+    private void MarkFailure(string eventType, long elapsedMilliseconds, string failureType)
+    {
+        int failures;
+        DateTimeOffset openUntil;
+        var threshold = Math.Max(1, _options.CircuitBreakerFailureThreshold);
+        var breakDurationSeconds = Math.Max(1, _options.CircuitBreakerBreakDurationSeconds);
+
+        lock (_circuitBreakerLock)
+        {
+            failures = ++_consecutiveFailures;
+            if (failures >= threshold)
+            {
+                _circuitOpenUntilUtc = DateTimeOffset.UtcNow.AddSeconds(breakDurationSeconds);
+            }
+            openUntil = _circuitOpenUntilUtc;
+        }
+
+        _logger.LogWarning(
+            "New Relic publish failed for {EventType} after {ElapsedMilliseconds}ms (type: {FailureType}). Consecutive failures: {Failures}. Circuit open until: {CircuitOpenUntilUtc}",
+            eventType,
+            elapsedMilliseconds,
+            failureType,
+            failures,
+            openUntil == DateTimeOffset.MinValue ? null : openUntil);
     }
 }

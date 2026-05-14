@@ -13,4 +13,10 @@ public sealed class NewRelicOptions
     public string EventType { get; set; } = "TeamBuzzed";
 
     public string LeadCaptureEventType { get; set; } = "LeadCaptureSubmitted";
+
+    public int EventPublishTimeoutSeconds { get; set; } = 15;
+
+    public int CircuitBreakerFailureThreshold { get; set; } = 3;
+
+    public int CircuitBreakerBreakDurationSeconds { get; set; } = 60;
 }

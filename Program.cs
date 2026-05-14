@@ -1,4 +1,7 @@
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Http.Timeouts;
+using Microsoft.Extensions.Options;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
@@ -6,9 +9,34 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        options.DisconnectedCircuitMaxRetained = 100;
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+        options.JSInteropDefaultCallTimeout = TimeSpan.FromSeconds(30);
+    })
+    .AddHubOptions(options =>
+    {
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+        options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    });
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
-builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
+builder.Services.AddScoped<CircuitHandler, BlazorCircuitLoggingHandler>();
+builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<IOptions<NewRelicOptions>>().Value;
+    var timeoutSeconds = Math.Max(1, options.EventPublishTimeoutSeconds);
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
+builder.Services.AddRequestTimeouts(options =>
+{
+    options.DefaultPolicy = new RequestTimeoutPolicy
+    {
+        Timeout = TimeSpan.FromSeconds(30),
+        TimeoutStatusCode = StatusCodes.Status504GatewayTimeout
+    };
+});
 
 // Trust forwarded headers from App Runner's reverse proxy
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -32,6 +60,9 @@ if (!app.Environment.IsDevelopment())
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 //app.UseHttpsRedirection();
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/_blazor"),
+    appBuilder => appBuilder.UseRequestTimeouts());
 
 app.UseAntiforgery();
 
