@@ -5,6 +5,11 @@ using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var blockedChaosQueryParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "chaos",
+    "latencyMs"
+};
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -37,15 +42,14 @@ if (app.Environment.IsProduction())
 {
     app.Use(async (context, next) =>
     {
-        if (context.Request.Query.ContainsKey("chaos") || context.Request.Query.ContainsKey("latencyMs"))
+        if (context.Request.Query.Keys.Any(blockedChaosQueryParameters.Contains))
         {
             app.Logger.LogWarning("Blocking chaos query parameters on a production request.");
 
             var sanitizedQuery = new Dictionary<string, StringValues>(StringComparer.OrdinalIgnoreCase);
             foreach (var queryParameter in context.Request.Query)
             {
-                if (string.Equals(queryParameter.Key, "chaos", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(queryParameter.Key, "latencyMs", StringComparison.OrdinalIgnoreCase))
+                if (blockedChaosQueryParameters.Contains(queryParameter.Key))
                 {
                     continue;
                 }
@@ -54,6 +58,8 @@ if (app.Environment.IsProduction())
             }
 
             var sanitizedQueryCollection = new QueryCollection(sanitizedQuery);
+            // Keep both the parsed query feature and raw query string in sync so downstream
+            // components see the same sanitized values regardless of which request API they use.
             context.Features.Set<IQueryFeature>(new QueryFeature(sanitizedQueryCollection));
             context.Request.QueryString = QueryString.Create(sanitizedQuery);
         }
