@@ -5,6 +5,7 @@ using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var newRelicOptions = builder.Configuration.GetSection(NewRelicOptions.SectionName).Get<NewRelicOptions>() ?? new NewRelicOptions();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -12,15 +13,18 @@ builder.Services.AddRazorComponents()
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.Configure<HttpConnectionDispatcherOptions>(options =>
 {
-    var timeoutSeconds = builder.Configuration
-        .GetValue<int?>($"{NewRelicOptions.SectionName}:{nameof(NewRelicOptions.SignalRLongPollingTimeoutSeconds)}");
+    var timeoutSeconds = newRelicOptions.SignalRLongPollingTimeoutSeconds > 0
+        ? newRelicOptions.SignalRLongPollingTimeoutSeconds
+        : NewRelicOptions.DefaultSignalRLongPollingTimeoutSeconds;
 
-    options.LongPolling.PollTimeout = TimeSpan.FromSeconds(timeoutSeconds is > 0 ? timeoutSeconds.Value : 25);
+    options.LongPolling.PollTimeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<IOptions<NewRelicOptions>>().Value;
-    var timeoutSeconds = options.PublishTimeoutSeconds > 0 ? options.PublishTimeoutSeconds : 10;
+    var timeoutSeconds = options.PublishTimeoutSeconds > 0
+        ? options.PublishTimeoutSeconds
+        : NewRelicOptions.DefaultPublishTimeoutSeconds;
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 

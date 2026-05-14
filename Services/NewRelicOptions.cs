@@ -3,6 +3,8 @@ namespace O11yPartyBuzzer.Services;
 public sealed class NewRelicOptions
 {
     public const string SectionName = "NewRelic";
+    public const int DefaultPublishTimeoutSeconds = 10;
+    public const int DefaultSignalRLongPollingTimeoutSeconds = 25;
 
     public string IngestApiKey { get; set; } = string.Empty;
 
@@ -14,7 +16,7 @@ public sealed class NewRelicOptions
 
     public string LeadCaptureEventType { get; set; } = "LeadCaptureSubmitted";
 
-    public int PublishTimeoutSeconds { get; set; } = 10;
+    public int PublishTimeoutSeconds { get; set; } = DefaultPublishTimeoutSeconds;
 
-    public int SignalRLongPollingTimeoutSeconds { get; set; } = 25;
+    public int SignalRLongPollingTimeoutSeconds { get; set; } = DefaultSignalRLongPollingTimeoutSeconds;
 }
