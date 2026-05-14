@@ -27,7 +27,14 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+Synthetic chaos modes are disabled by default. They are only honored when both of the following are true:
+
+- the app is running in the `Development` or `Staging` environment
+- `ENABLE_CHAOS_MODE=true`
+
+When either condition is not met (including production), any `?chaos=` query parameter is ignored.
+
+Append `?chaos=<mode>` to the URL to simulate failure conditions when chaos mode is enabled:
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
