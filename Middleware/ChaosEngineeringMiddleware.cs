@@ -62,41 +62,33 @@ public sealed class ChaosEngineeringMiddleware(
 
     private void AddChaosAttributes(ChaosRequestEvaluation evaluation)
     {
-        TryAddAttribute("chaos.mode.requested", true);
-        TryAddAttribute("chaos.type", evaluation.Mode);
-        TryAddAttribute("chaos.environment", evaluation.EnvironmentName);
+        TryAddAttribute(transaction =>
+        {
+            transaction.AddCustomAttribute("chaos.mode.requested", true);
+            transaction.AddCustomAttribute("chaos.type", evaluation.Mode);
+            transaction.AddCustomAttribute("chaos.environment", evaluation.EnvironmentName);
+        });
     }
 
     private void TryAddAttribute(string key, bool value)
     {
-        var transaction = GetCurrentTransaction();
-        if (transaction is null)
-        {
-            return;
-        }
-
-        transaction.AddCustomAttribute(key, value);
+        TryAddAttribute(transaction => transaction.AddCustomAttribute(key, value));
     }
 
     private void TryAddAttribute(string key, string value)
     {
-        var transaction = GetCurrentTransaction();
-        if (transaction is null)
-        {
-            return;
-        }
-
-        transaction.AddCustomAttribute(key, value);
+        TryAddAttribute(transaction => transaction.AddCustomAttribute(key, value));
     }
 
-    private NewRelic.Api.Agent.ITransaction? GetCurrentTransaction()
+    private void TryAddAttribute(Action<NewRelic.Api.Agent.ITransaction> applyAttribute)
     {
         var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
         if (transaction is null)
         {
             _logger.LogDebug("Skipped New Relic chaos attribute because no active transaction was available.");
+            return;
         }
 
-        return transaction;
+        applyAttribute(transaction);
     }
 }

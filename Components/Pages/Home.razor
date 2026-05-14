@@ -221,7 +221,14 @@
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		var evaluation = ChaosPolicy.Evaluate(mode);
-		var logMode = GetLogMode(evaluation.Mode);
+		var logMode = evaluation.Mode switch
+		{
+			"latency" => "latency",
+			"exception" => "exception",
+			"random" => "random",
+			"timeout" => "timeout",
+			_ => "unknown"
+		};
 
 		if (evaluation.IsBlockedInProduction)
 		{
@@ -308,17 +315,5 @@
 		public string CompanyName { get; set; } = string.Empty;
 		public string JobTitle { get; set; } = string.Empty;
 		public string Country { get; set; } = string.Empty;
-	}
-
-	private static string GetLogMode(string mode)
-	{
-		return mode switch
-		{
-			"latency" => "latency",
-			"exception" => "exception",
-			"random" => "random",
-			"timeout" => "timeout",
-			_ => "unknown"
-		};
 	}
 }
