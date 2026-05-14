@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Http.Extensions;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Primitives;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
@@ -38,13 +39,9 @@ if (app.Environment.IsProduction())
     {
         if (context.Request.Query.ContainsKey("chaos") || context.Request.Query.ContainsKey("latencyMs"))
         {
-            var attemptedMode = context.Request.Query["chaos"].ToString();
-            app.Logger.LogWarning(
-                "Blocking chaos query parameters on production request to {Path}. chaos={ChaosMode}",
-                context.Request.Path,
-                attemptedMode);
+            app.Logger.LogWarning("Blocking chaos query parameters on a production request.");
 
-            var sanitizedQuery = new QueryBuilder();
+            var sanitizedQuery = new Dictionary<string, StringValues>(StringComparer.OrdinalIgnoreCase);
             foreach (var queryParameter in context.Request.Query)
             {
                 if (string.Equals(queryParameter.Key, "chaos", StringComparison.OrdinalIgnoreCase)
@@ -53,13 +50,12 @@ if (app.Environment.IsProduction())
                     continue;
                 }
 
-                foreach (var value in queryParameter.Value)
-                {
-                    sanitizedQuery.Add(queryParameter.Key, value ?? string.Empty);
-                }
+                sanitizedQuery[queryParameter.Key] = queryParameter.Value;
             }
 
-            context.Request.QueryString = sanitizedQuery.ToQueryString();
+            var sanitizedQueryCollection = new QueryCollection(sanitizedQuery);
+            context.Features.Set<IQueryFeature>(new QueryFeature(sanitizedQueryCollection));
+            context.Request.QueryString = QueryString.Create(sanitizedQuery);
         }
 
         await next();

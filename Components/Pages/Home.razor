@@ -220,7 +220,7 @@
 
 		if (HostEnvironment.IsProduction())
 		{
-			Logger.LogWarning("Ignoring synthetic failure mode '{FailureMode}' in production.", mode);
+			Logger.LogWarning("Ignoring a synthetic failure mode in production.");
 			return;
 		}
 
