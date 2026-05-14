@@ -38,6 +38,14 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 Example: `http://localhost:5071/?chaos=random`
 
+Chaos mode is disabled by default and is intended for non-production testing only.
+Control it with configuration:
+
+- `Chaos__EnableChaosMode` (`true`/`false`, default `false`)
+- `Chaos__AllowedEnvironments` (default: `Development`, `Staging`)
+
+If chaos is requested in a blocked environment, the request is ignored and logged with a `[CHAOS-TEST]` prefix.
+
 ## Event Payload
 
 A single event object is sent with fields:
