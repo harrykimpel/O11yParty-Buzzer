@@ -17,6 +17,11 @@ Set these values before running:
 
 You can set them as environment variables, user-secrets, or directly in `appsettings.json`.
 
+Chaos mode is controlled by `Chaos__Enabled`:
+
+- Development default: `true` (configured in `appsettings.Development.json`)
+- Production default: `false` (explicitly configured in `appsettings.Production.json`)
+
 ## Run
 
 ```bash
@@ -27,7 +32,7 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+When `Chaos__Enabled=true` and not running in Production, append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
