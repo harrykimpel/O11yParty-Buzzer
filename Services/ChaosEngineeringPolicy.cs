@@ -14,25 +14,25 @@ public sealed class ChaosEngineeringPolicy(
         var normalizedMode = NormalizeMode(chaosMode);
         if (string.IsNullOrWhiteSpace(normalizedMode))
         {
-            return new ChaosRequestEvaluation(string.Empty, _environment.EnvironmentName, false, false, false);
+            return new ChaosRequestEvaluation(string.Empty, _environment.EnvironmentName, ChaosRequestBlockReason.None);
         }
 
         if (_environment.IsProduction())
         {
-            return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, false, true, true);
+            return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, ChaosRequestBlockReason.Production);
         }
 
         if (!_chaosOptions.Enabled)
         {
-            return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, false, false, false);
+            return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, ChaosRequestBlockReason.Configuration);
         }
 
         if (!_chaosOptions.IsEnvironmentAllowed(_environment.EnvironmentName))
         {
-            return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, false, false, false);
+            return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, ChaosRequestBlockReason.Environment);
         }
 
-        return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, true, false, false);
+        return new ChaosRequestEvaluation(normalizedMode, _environment.EnvironmentName, ChaosRequestBlockReason.None);
     }
 
     private static string NormalizeMode(string? chaosMode)
@@ -44,9 +44,23 @@ public sealed class ChaosEngineeringPolicy(
 public readonly record struct ChaosRequestEvaluation(
     string Mode,
     string EnvironmentName,
-    bool ShouldApplyChaos,
-    bool IsBlockedInProduction,
-    bool IsDisabledByConfiguration)
+    ChaosRequestBlockReason BlockReason)
 {
     public bool IsRequested => !string.IsNullOrWhiteSpace(Mode);
+
+    public bool ShouldApplyChaos => IsRequested && BlockReason is ChaosRequestBlockReason.None;
+
+    public bool IsBlockedInProduction => BlockReason is ChaosRequestBlockReason.Production;
+
+    public bool IsDisabledByConfiguration => BlockReason is ChaosRequestBlockReason.Configuration;
+
+    public bool IsDisallowedEnvironment => BlockReason is ChaosRequestBlockReason.Environment;
+}
+
+public enum ChaosRequestBlockReason
+{
+    None,
+    Production,
+    Configuration,
+    Environment
 }

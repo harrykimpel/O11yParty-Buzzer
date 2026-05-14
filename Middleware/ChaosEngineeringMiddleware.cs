@@ -49,6 +49,13 @@ public sealed class ChaosEngineeringMiddleware(
                 "Chaos mode requested while disabled via configuration. RequestId: {RequestId}",
                 context.TraceIdentifier);
         }
+        else if (evaluation.IsDisallowedEnvironment)
+        {
+            TryAddAttribute("chaos.mode.enabled", false);
+            _logger.LogWarning(
+                "Chaos mode requested in a disallowed environment. RequestId: {RequestId}.",
+                context.TraceIdentifier);
+        }
 
         await _next(context);
     }
@@ -62,10 +69,9 @@ public sealed class ChaosEngineeringMiddleware(
 
     private void TryAddAttribute(string key, bool value)
     {
-        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        var transaction = GetCurrentTransaction();
         if (transaction is null)
         {
-            _logger.LogDebug("Skipped New Relic chaos attribute because no active transaction was available.");
             return;
         }
 
@@ -74,13 +80,23 @@ public sealed class ChaosEngineeringMiddleware(
 
     private void TryAddAttribute(string key, string value)
     {
-        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        var transaction = GetCurrentTransaction();
         if (transaction is null)
         {
-            _logger.LogDebug("Skipped New Relic chaos attribute because no active transaction was available.");
             return;
         }
 
         transaction.AddCustomAttribute(key, value);
+    }
+
+    private NewRelic.Api.Agent.ITransaction? GetCurrentTransaction()
+    {
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        if (transaction is null)
+        {
+            _logger.LogDebug("Skipped New Relic chaos attribute because no active transaction was available.");
+        }
+
+        return transaction;
     }
 }
