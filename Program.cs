@@ -6,20 +6,28 @@ using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var resilienceOptions = builder.Configuration.GetSection(ResilienceOptions.SectionName).Get<ResilienceOptions>() ?? new ResilienceOptions();
+var blazorDisconnectedCircuitMaxRetained = Math.Max(1, resilienceOptions.BlazorDisconnectedCircuitMaxRetained);
+var blazorDisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(Math.Max(1, resilienceOptions.BlazorDisconnectedCircuitRetentionMinutes));
+var blazorJsInteropCallTimeout = TimeSpan.FromSeconds(Math.Max(1, resilienceOptions.BlazorJsInteropCallTimeoutSeconds));
+var blazorHubClientTimeout = TimeSpan.FromSeconds(Math.Max(1, resilienceOptions.BlazorHubClientTimeoutSeconds));
+var blazorHubHandshakeTimeout = TimeSpan.FromSeconds(Math.Max(1, resilienceOptions.BlazorHubHandshakeTimeoutSeconds));
+var blazorHubKeepAliveInterval = TimeSpan.FromSeconds(Math.Max(1, resilienceOptions.BlazorHubKeepAliveIntervalSeconds));
+var httpRequestTimeout = TimeSpan.FromSeconds(Math.Max(1, resilienceOptions.RequestTimeoutSeconds));
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
-        options.DisconnectedCircuitMaxRetained = 100;
-        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
-        options.JSInteropDefaultCallTimeout = TimeSpan.FromSeconds(30);
+        options.DisconnectedCircuitMaxRetained = blazorDisconnectedCircuitMaxRetained;
+        options.DisconnectedCircuitRetentionPeriod = blazorDisconnectedCircuitRetentionPeriod;
+        options.JSInteropDefaultCallTimeout = blazorJsInteropCallTimeout;
     })
     .AddHubOptions(options =>
     {
-        options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
-        options.HandshakeTimeout = TimeSpan.FromSeconds(15);
-        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+        options.ClientTimeoutInterval = blazorHubClientTimeout;
+        options.HandshakeTimeout = blazorHubHandshakeTimeout;
+        options.KeepAliveInterval = blazorHubKeepAliveInterval;
     });
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.AddScoped<CircuitHandler, BlazorCircuitLoggingHandler>();
@@ -33,7 +41,7 @@ builder.Services.AddRequestTimeouts(options =>
 {
     options.DefaultPolicy = new RequestTimeoutPolicy
     {
-        Timeout = TimeSpan.FromSeconds(30),
+        Timeout = httpRequestTimeout,
         TimeoutStatusCode = StatusCodes.Status504GatewayTimeout
     };
 });

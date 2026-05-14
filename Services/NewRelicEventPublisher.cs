@@ -112,7 +112,7 @@ public sealed class NewRelicEventPublisher(
                 "Skipping New Relic publish for {EventType}; circuit breaker is open until {CircuitOpenUntilUtc}",
                 eventType,
                 openUntil);
-            throw new InvalidOperationException("New Relic event publishing is temporarily unavailable. Please try again shortly.");
+            throw new InvalidOperationException("Circuit breaker is open; New Relic event publishing is temporarily disabled.");
         }
 
         var stopwatch = Stopwatch.StartNew();

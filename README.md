@@ -22,6 +22,7 @@ Set these values before running:
 You can set them as environment variables, user-secrets, or directly in `appsettings.json`.
 
 The app also applies a 30-second request timeout policy for non-`/_blazor` endpoints and logs Blazor circuit lifecycle events for connection diagnostics.
+These Blazor/request timeout values can be tuned under the `Resilience` section in `appsettings.json`.
 
 ## Run
 
