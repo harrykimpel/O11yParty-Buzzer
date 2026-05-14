@@ -2,8 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
-@inject IWebHostEnvironment HostEnvironment
-@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosEngineeringOptions> ChaosOptions
+@inject O11yPartyBuzzer.Services.ChaosEngineeringPolicy ChaosPolicy
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -221,39 +220,36 @@
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
+		var evaluation = ChaosPolicy.Evaluate(mode);
 		transaction.AddCustomAttribute("chaos.mode.requested", true);
-		transaction.AddCustomAttribute("chaos.type", mode);
-		transaction.AddCustomAttribute("chaos.environment", HostEnvironment.EnvironmentName);
+		transaction.AddCustomAttribute("chaos.type", evaluation.Mode);
+		transaction.AddCustomAttribute("chaos.environment", evaluation.EnvironmentName);
 
-		if (HostEnvironment.IsProduction())
+		if (evaluation.IsBlockedInProduction)
 		{
 			transaction.AddCustomAttribute("chaos.mode.blocked", true);
-			Logger.LogWarning("Chaos mode blocked in production environment: {FailureMode}", mode);
+			Logger.LogWarning("Chaos mode blocked in production environment.");
 			return;
 		}
 
-		var chaosSettings = ChaosOptions.Value;
-		if (!chaosSettings.Enabled)
+		if (evaluation.IsDisabledByConfiguration)
 		{
 			transaction.AddCustomAttribute("chaos.mode.enabled", false);
-			Logger.LogInformation("Chaos mode disabled via configuration: {FailureMode}", mode);
+			Logger.LogInformation("Chaos mode disabled via configuration.");
 			return;
 		}
 
-		if (!chaosSettings.IsEnvironmentAllowed(HostEnvironment.EnvironmentName))
+		if (!evaluation.ShouldApplyChaos)
 		{
 			transaction.AddCustomAttribute("chaos.mode.enabled", false);
-			Logger.LogWarning(
-				"Chaos mode requested in disallowed environment {Environment}: {FailureMode}",
-				HostEnvironment.EnvironmentName,
-				mode);
+			Logger.LogWarning("Chaos mode requested outside an allowed environment.");
 			return;
 		}
 
 		transaction.AddCustomAttribute("chaos.mode.enabled", true);
 		transaction.AddCustomAttribute("chaos.mode.active", true);
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Synthetic failure mode active.");
 
 		switch (mode)
 		{

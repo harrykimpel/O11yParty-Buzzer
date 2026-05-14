@@ -5,13 +5,11 @@ namespace O11yPartyBuzzer.Middleware;
 
 public sealed class ChaosEngineeringMiddleware(
     RequestDelegate next,
-    IWebHostEnvironment environment,
-    IOptions<ChaosEngineeringOptions> chaosOptions,
+    ChaosEngineeringPolicy chaosPolicy,
     ILogger<ChaosEngineeringMiddleware> logger)
 {
     private readonly RequestDelegate _next = next;
-    private readonly IWebHostEnvironment _environment = environment;
-    private readonly ChaosEngineeringOptions _chaosOptions = chaosOptions.Value;
+    private readonly ChaosEngineeringPolicy _chaosPolicy = chaosPolicy;
     private readonly ILogger<ChaosEngineeringMiddleware> _logger = logger;
 
     public async Task InvokeAsync(HttpContext context)
@@ -22,22 +20,21 @@ public sealed class ChaosEngineeringMiddleware(
             return;
         }
 
-        var chaosMode = chaosValues.ToString().Trim();
-        if (string.IsNullOrWhiteSpace(chaosMode))
+        var evaluation = _chaosPolicy.Evaluate(chaosValues.ToString());
+        if (!evaluation.IsRequested)
         {
             await _next(context);
             return;
         }
 
-        AddChaosAttributes(chaosMode);
+        AddChaosAttributes(evaluation);
 
-        if (_environment.IsProduction())
+        if (evaluation.IsBlockedInProduction)
         {
             TryAddAttribute("chaos.mode.blocked", true);
             _logger.LogWarning(
-                "Chaos mode blocked in production. RequestId: {RequestId}, ChaosMode: {ChaosMode}",
-                context.TraceIdentifier,
-                chaosMode);
+                "Chaos mode blocked in production. RequestId: {RequestId}",
+                context.TraceIdentifier);
 
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "text/plain; charset=utf-8";
@@ -45,41 +42,45 @@ public sealed class ChaosEngineeringMiddleware(
             return;
         }
 
-        if (!_chaosOptions.Enabled)
+        if (evaluation.IsDisabledByConfiguration)
         {
             TryAddAttribute("chaos.mode.enabled", false);
             _logger.LogInformation(
-                "Chaos mode requested while disabled via configuration. RequestId: {RequestId}, ChaosMode: {ChaosMode}",
-                context.TraceIdentifier,
-                chaosMode);
-        }
-        else if (!_chaosOptions.IsEnvironmentAllowed(_environment.EnvironmentName))
-        {
-            TryAddAttribute("chaos.mode.enabled", false);
-            _logger.LogWarning(
-                "Chaos mode requested in disallowed environment {Environment}. RequestId: {RequestId}, ChaosMode: {ChaosMode}",
-                _environment.EnvironmentName,
-                context.TraceIdentifier,
-                chaosMode);
+                "Chaos mode requested while disabled via configuration. RequestId: {RequestId}",
+                context.TraceIdentifier);
         }
 
         await _next(context);
     }
 
-    private void AddChaosAttributes(string chaosMode)
+    private void AddChaosAttributes(ChaosRequestEvaluation evaluation)
     {
         TryAddAttribute("chaos.mode.requested", true);
-        TryAddAttribute("chaos.type", chaosMode);
-        TryAddAttribute("chaos.environment", _environment.EnvironmentName);
+        TryAddAttribute("chaos.type", evaluation.Mode);
+        TryAddAttribute("chaos.environment", evaluation.EnvironmentName);
     }
 
-    private static void TryAddAttribute(string key, bool value)
+    private void TryAddAttribute(string key, bool value)
     {
-        NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction.AddCustomAttribute(key, value);
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        if (transaction is null)
+        {
+            _logger.LogDebug("Skipped New Relic chaos attribute because no active transaction was available.");
+            return;
+        }
+
+        transaction.AddCustomAttribute(key, value);
     }
 
-    private static void TryAddAttribute(string key, string value)
+    private void TryAddAttribute(string key, string value)
     {
-        NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction.AddCustomAttribute(key, value);
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        if (transaction is null)
+        {
+            _logger.LogDebug("Skipped New Relic chaos attribute because no active transaction was available.");
+            return;
+        }
+
+        transaction.AddCustomAttribute(key, value);
     }
 }

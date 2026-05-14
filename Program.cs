@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.Configure<ChaosEngineeringOptions>(builder.Configuration.GetSection(ChaosEngineeringOptions.SectionName));
+builder.Services.AddSingleton<ChaosEngineeringPolicy>();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
 
