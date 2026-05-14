@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Options;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
@@ -24,36 +23,7 @@ var app = builder.Build();
 
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
-
-app.Use(async (context, next) =>
-{
-    if (!context.Request.Query.ContainsKey("chaos"))
-    {
-        await next();
-        return;
-    }
-
-    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("ChaosModeGuard");
-    var chaosOptions = context.RequestServices.GetRequiredService<IOptions<ChaosOptions>>().Value;
-
-    if (app.Environment.IsProduction())
-    {
-        logger.LogWarning("Blocked chaos mode query parameter in production for {Path}", context.Request.Path);
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsync("Chaos mode is not available in production.");
-        return;
-    }
-
-    if (!chaosOptions.Enabled)
-    {
-        logger.LogWarning("Blocked chaos mode query parameter while disabled for {Path}", context.Request.Path);
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsync("Chaos mode is disabled.");
-        return;
-    }
-
-    await next();
-});
+app.UseMiddleware<ChaosModeGuardMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

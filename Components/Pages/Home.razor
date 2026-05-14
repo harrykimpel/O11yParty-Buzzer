@@ -221,13 +221,13 @@
 
 		if (Environment.IsProduction())
 		{
-			Logger.LogWarning("Blocked synthetic failure mode '{FailureMode}' attempt in production", mode);
+			Logger.LogWarning("Blocked synthetic failure mode attempt in production.");
 			return;
 		}
 
 		if (!ChaosOptions.Value.Enabled)
 		{
-			Logger.LogWarning("Blocked synthetic failure mode '{FailureMode}' because chaos mode is disabled", mode);
+			Logger.LogWarning("Blocked synthetic failure mode attempt because chaos mode is disabled.");
 			return;
 		}
 
