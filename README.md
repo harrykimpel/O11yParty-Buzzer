@@ -27,12 +27,18 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+Chaos mode is controlled by `Chaos__Enabled`:
+
+- `false` by default in production (`appsettings.json`)
+- `true` by default in development (`appsettings.Development.json`)
+- startup will fail if chaos mode is enabled in Production
+
+When chaos mode is enabled, append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
 | `latency`   | Adds an artificial delay before the buzz (default 3000 ms; override with `&latencyMs=<ms>`) |
-| `exception` | Throws an unhandled exception on every buzz                   |
+| `exception` | Returns a controlled synthetic failure message                |
 | `random`    | Fails ~50% of buzzes at random                                |
 | `timeout`   | Simulates a long-running request that times out after 35 s    |
 
