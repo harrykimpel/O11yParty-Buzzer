@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IConfiguration Configuration
+@inject IWebHostEnvironment HostEnvironment
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -98,6 +100,7 @@
 	/// random – fails ~50 % of buzzes at random
 	/// timeout – simulates a long-running request that eventually times out
 	/// Use: ?chaos=latency|exception|random|timeout
+	/// Requires CHAOS_MODE_ENABLED=true and a non-production environment.
 	/// </summary>
 	[SupplyParameterFromQuery(Name = "chaos")]
 	public string? FailureMode { get; set; }
@@ -105,6 +108,21 @@
 	/// <summary>Delay in milliseconds used when failure=latency (default 3000).</summary>
 	[SupplyParameterFromQuery(Name = "latencyMs")]
 	public int? LatencyMs { get; set; }
+
+	/// <summary>
+	/// Returns true only when the CHAOS_MODE_ENABLED environment variable is set to "true"
+	/// and the application is not running in the Production environment.
+	/// Both conditions must be met to prevent accidental chaos in production.
+	/// Cached after component initialization since configuration and environment are stable.
+	/// </summary>
+	private bool _isChaosEnabled;
+
+	protected override void OnInitialized()
+	{
+		_isChaosEnabled = !HostEnvironment.IsProduction() &&
+			bool.TryParse(Configuration["CHAOS_MODE_ENABLED"], out var enabled) &&
+			enabled;
+	}
 
 	[NewRelic.Api.Agent.Transaction]
 	private async Task SubmitLeadFormAsync()
@@ -217,10 +235,18 @@
 			return;
 		}
 
+		if (!_isChaosEnabled)
+		{
+			Logger.LogWarning(
+				"Chaos mode requested (mode={Mode}) but is disabled — set CHAOS_MODE_ENABLED=true in a non-production environment to enable",
+				mode);
+			return;
+		}
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Chaos mode ACTIVATED: {FailureMode}", mode);
 
 		switch (mode)
 		{
