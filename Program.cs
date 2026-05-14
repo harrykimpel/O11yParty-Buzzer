@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.HttpOverrides;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
@@ -9,6 +10,24 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
+
+// Configure SignalR hub options for Blazor Server WebSocket connections.
+// Explicit keep-alive and timeout values prevent the 90-second default idle
+// timeout from manifesting as hung requests under ECS Fargate / ALB.
+builder.Services.AddSignalR(options =>
+{
+    options.KeepAliveInterval = TimeSpan.FromSeconds(10);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+});
+
+// Configure Blazor circuit lifecycle options.
+builder.Services.Configure<CircuitOptions>(options =>
+{
+    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+    options.DisconnectedCircuitMaxRetained = 100;
+    options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(1);
+});
 
 // Trust forwarded headers from App Runner's reverse proxy
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
