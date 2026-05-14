@@ -15,7 +15,7 @@ public class ChaosConfigurationValidatorTests
         var action = () => ChaosConfigurationValidator.ValidateOrThrow(options, environment);
 
         var exception = Assert.Throws<InvalidOperationException>(action);
-        Assert.Equal("Chaos mode cannot be enabled in Production.", exception.Message);
+        Assert.Equal("Chaos mode cannot be enabled in Production. Set Chaos:Enabled (or Chaos__Enabled) to false.", exception.Message);
     }
 
     [Fact]

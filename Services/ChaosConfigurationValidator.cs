@@ -9,7 +9,7 @@ public static class ChaosConfigurationValidator
 
         if (environment.IsProduction() && options.Enabled)
         {
-            throw new InvalidOperationException("Chaos mode cannot be enabled in Production.");
+            throw new InvalidOperationException("Chaos mode cannot be enabled in Production. Set Chaos:Enabled (or Chaos__Enabled) to false.");
         }
     }
 }

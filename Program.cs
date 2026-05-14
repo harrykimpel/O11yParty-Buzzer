@@ -23,7 +23,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 var app = builder.Build();
 var chaosOptions = app.Services.GetRequiredService<IOptions<ChaosOptions>>().Value;
 ChaosConfigurationValidator.ValidateOrThrow(chaosOptions, app.Environment);
-var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup.ChaosMode");
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("O11yPartyBuzzer.Startup.ChaosMode");
 if (chaosOptions.Enabled)
 {
     startupLogger.LogWarning("Chaos mode is ENABLED for environment '{EnvironmentName}'.", app.Environment.EnvironmentName);
