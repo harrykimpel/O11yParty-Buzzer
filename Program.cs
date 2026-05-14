@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.Extensions.Options;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
@@ -8,7 +10,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
-builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
+builder.Services.Configure<HttpConnectionDispatcherOptions>(options =>
+{
+    var timeoutSeconds = builder.Configuration
+        .GetValue<int?>($"{NewRelicOptions.SectionName}:{nameof(NewRelicOptions.SignalRLongPollingTimeoutSeconds)}");
+
+    options.LongPolling.PollTimeout = TimeSpan.FromSeconds(timeoutSeconds is > 0 ? timeoutSeconds.Value : 25);
+});
+builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<IOptions<NewRelicOptions>>().Value;
+    var timeoutSeconds = options.PublishTimeoutSeconds > 0 ? options.PublishTimeoutSeconds : 10;
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
 
 // Trust forwarded headers from App Runner's reverse proxy
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

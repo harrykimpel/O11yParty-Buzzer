@@ -14,6 +14,8 @@ Set these values before running:
 - `NewRelic__AccountId`
 - `NewRelic__Region` (`US` or `EU`, optional, defaults to `US`)
 - `NewRelic__EventType` (optional, defaults to `TeamBuzzed`)
+- `NewRelic__PublishTimeoutSeconds` (optional, defaults to `10`)
+- `NewRelic__SignalRLongPollingTimeoutSeconds` (optional, defaults to `25` to avoid long 90s `_blazor` polls)
 
 You can set them as environment variables, user-secrets, or directly in `appsettings.json`.
 
