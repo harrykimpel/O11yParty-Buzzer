@@ -38,6 +38,8 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 Example: `http://localhost:5071/?chaos=random`
 
+These chaos query parameters are intended for non-production demos/testing only. In production, the app strips `chaos`/`latencyMs` from incoming requests and ignores any synthetic failure mode that still reaches the component.
+
 ## Event Payload
 
 A single event object is sent with fields:
