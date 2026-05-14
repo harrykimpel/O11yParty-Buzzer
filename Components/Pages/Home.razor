@@ -92,6 +92,7 @@
 	private bool isLeadCaptured;
 	private string leadFormError = string.Empty;
 	private readonly LeadCaptureForm leadForm = new();
+	private const int MaxChaosLogValueLength = 120;
 
 	/// <summary>
 	/// Synthetic failure mode. Supported values:
@@ -219,17 +220,20 @@
 			return;
 		}
 
+		var chaosConfig = ChaosOptionsAccessor.Value;
+		var sanitizedMode = SanitizeForLog(mode);
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("chaosModeRequested", true)
-			.AddCustomAttribute("chaosRequestedMode", mode);
+			.AddCustomAttribute("chaosRequestedMode", sanitizedMode);
 
-		if (!IsChaosModeEnabled(out var chaosConfig))
+		if (!chaosConfig.EnableChaosMode)
 		{
 			transaction.AddCustomAttribute("chaosModeEnabled", false)
 				.AddCustomAttribute("chaosModeActive", false)
+				.AddCustomAttribute("chaosModeAllowed", false)
 				.AddCustomAttribute("chaosModeBlockedReason", "disabled");
-			Logger.LogWarning("[CHAOS-TEST] Chaos mode request ignored because chaos mode is disabled. Requested mode: {FailureMode}", mode);
+			Logger.LogWarning("[CHAOS-TEST] Chaos mode request ignored because chaos mode is disabled. Requested mode: {FailureMode}", sanitizedMode);
 			return;
 		}
 
@@ -237,17 +241,19 @@
 		{
 			transaction.AddCustomAttribute("chaosModeEnabled", true)
 				.AddCustomAttribute("chaosModeActive", false)
+				.AddCustomAttribute("chaosModeAllowed", false)
 				.AddCustomAttribute("chaosModeBlockedReason", "environment-not-allowed")
 				.AddCustomAttribute("chaosCurrentEnvironment", HostEnvironment.EnvironmentName);
-			Logger.LogWarning("[CHAOS-TEST] Chaos mode request ignored in environment '{EnvironmentName}'. Requested mode: {FailureMode}", HostEnvironment.EnvironmentName, mode);
+			Logger.LogWarning("[CHAOS-TEST] Chaos mode request ignored in environment '{EnvironmentName}'. Requested mode: {FailureMode}", HostEnvironment.EnvironmentName, sanitizedMode);
 			return;
 		}
 
 		transaction.AddCustomAttribute("chaosModeEnabled", true)
 			.AddCustomAttribute("chaosModeActive", true)
+			.AddCustomAttribute("chaosModeAllowed", true)
 			.AddCustomAttribute("chaosCurrentEnvironment", HostEnvironment.EnvironmentName);
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("[CHAOS-TEST] Synthetic failure mode active: {FailureMode}", mode);
+		transaction.AddCustomAttribute("syntheticFailureMode", sanitizedMode);
+		Logger.LogWarning("[CHAOS-TEST] Synthetic failure mode active: {FailureMode}", sanitizedMode);
 
 		switch (mode)
 		{
@@ -295,21 +301,44 @@
 				}
 
 			default:
-				Logger.LogWarning("[CHAOS-TEST] Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning("[CHAOS-TEST] Unknown synthetic failure mode '{Mode}' — ignored", sanitizedMode);
 				break;
 		}
 	}
 
-	private bool IsChaosModeEnabled(out O11yPartyBuzzer.Services.ChaosOptions chaosOptions)
-	{
-		chaosOptions = ChaosOptionsAccessor.Value;
-		return chaosOptions.EnableChaosMode;
-	}
-
 	private bool IsEnvironmentAllowedForChaos(O11yPartyBuzzer.Services.ChaosOptions chaosOptions)
 	{
-		return chaosOptions.AllowedEnvironments.Any(environment =>
+		var allowedEnvironments = chaosOptions.AllowedEnvironments;
+		if (allowedEnvironments is null || allowedEnvironments.Count == 0)
+		{
+			return false;
+		}
+
+		return allowedEnvironments.Any(environment =>
 			string.Equals(environment, HostEnvironment.EnvironmentName, StringComparison.OrdinalIgnoreCase));
+	}
+
+	private static string SanitizeForLog(string value)
+	{
+		if (string.IsNullOrEmpty(value))
+		{
+			return string.Empty;
+		}
+
+		var builder = new System.Text.StringBuilder(MaxChaosLogValueLength);
+		foreach (var ch in value)
+		{
+			if (!char.IsControl(ch))
+			{
+				builder.Append(ch);
+				if (builder.Length == MaxChaosLogValueLength)
+				{
+					break;
+				}
+			}
+		}
+
+		return builder.ToString().Trim();
 	}
 
 	private sealed class LeadCaptureForm
