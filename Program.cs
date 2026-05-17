@@ -17,6 +17,7 @@ builder.Services.AddRazorComponents()
     });
 builder.Services.Configure<HubOptions>(options =>
 {
+    // Keep this in sync with App.razor client-side SignalR options.
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
     options.HandshakeTimeout = TimeSpan.FromSeconds(30);
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
