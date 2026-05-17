@@ -35,7 +35,7 @@
             window.__blazorStartPromise = Blazor.start({
                 circuit: {
                     configureSignalR: function (builder) {
-                        // Keep this in sync with Program.cs HubOptions.
+                        // Keep this in sync with Program.cs HubOptions.KeepAliveInterval and ClientTimeoutInterval.
                         builder.withKeepAliveInterval(signalRKeepAliveIntervalMs);
                         builder.withServerTimeout(signalRServerTimeoutMs);
                     }
