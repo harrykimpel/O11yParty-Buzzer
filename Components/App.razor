@@ -20,21 +20,29 @@
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]" autostart="false" onload="window.__startBlazorApp?.()" onerror="window.__blazorWebFailed = true"></script>
     <script>
+        const signalRKeepAliveIntervalMs = 15000;
+        const signalRServerTimeoutMs = 60000;
+
         window.__startBlazorApp = function () {
-            if (!window.Blazor || window.__blazorStarted) {
-                return;
+            if (!window.Blazor) {
+                return window.__blazorStartPromise;
             }
 
-            window.__blazorStarted = true;
-            Blazor.start({
+            if (window.__blazorStartPromise) {
+                return window.__blazorStartPromise;
+            }
+
+            window.__blazorStartPromise = Blazor.start({
                 circuit: {
                     configureSignalR: function (builder) {
                         // Keep this in sync with Program.cs HubOptions.
-                        builder.withKeepAliveInterval(15000);
-                        builder.withServerTimeout(60000);
+                        builder.withKeepAliveInterval(signalRKeepAliveIntervalMs);
+                        builder.withServerTimeout(signalRServerTimeoutMs);
                     }
                 }
             });
+
+            return window.__blazorStartPromise;
         };
 
         if (window.__blazorWebFailed) {
