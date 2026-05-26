@@ -1,5 +1,7 @@
 # O11yParty Buzzer (.NET 10 Blazor)
 
+> **Note:** This project works in concert with the companion game app at <https://github.com/harrykimpel/O11yParty>.
+
 ![O11yParty-Buzzer](./Assets/O11yParty-Buzzer.png)
 
 This app is a stateless buzzer UI.

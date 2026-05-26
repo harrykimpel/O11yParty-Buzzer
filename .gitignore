@@ -29,6 +29,7 @@ obj/
 .nuget/
 packages/
 .vscode/
+.idea/ 
 
 .DS_Store
 aws
