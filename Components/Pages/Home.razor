@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment Env
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -217,6 +218,12 @@
 			return;
 		}
 
+		if (Env.IsProduction())
+		{
+			Logger.LogWarning("Chaos mode '{FailureMode}' requested but is disabled in Production — ignoring", mode);
+			return;
+		}
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
@@ -252,7 +259,7 @@
 
 			case "timeout":
 				{
-					const int timeoutMs = 35_000;
+					const int timeoutMs = 30_000;
 					transaction.AddCustomAttribute("syntheticTimeoutMs", timeoutMs);
 					Logger.LogWarning("Synthetic timeout: waiting {TimeoutMs} ms", timeoutMs);
 					using var cts = new CancellationTokenSource(timeoutMs);
@@ -262,7 +269,7 @@
 					}
 					catch (OperationCanceledException)
 					{
-						throw new TimeoutException("Synthetic failure: request timed out after 35 s (injected via ?chaos=timeout)");
+						throw new TimeoutException("Synthetic failure: request timed out after 30 s (injected via ?chaos=timeout)");
 					}
 					break;
 				}
