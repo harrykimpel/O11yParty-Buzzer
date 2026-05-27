@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IHostEnvironment Environment
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosOptions> ChaosOptions
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -214,6 +216,18 @@
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		if (!ChaosOptions.Value.Enabled)
+		{
+			Logger.LogWarning("Blocked synthetic failure mode attempt because chaos mode is disabled.");
+			return;
+		}
+
+		if (Environment.IsProduction())
+		{
+			Logger.LogWarning("Blocked synthetic failure mode attempt in production.");
 			return;
 		}
 
