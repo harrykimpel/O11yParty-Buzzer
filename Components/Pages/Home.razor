@@ -1,7 +1,10 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
+@using O11yPartyBuzzer.Services
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IConfiguration Configuration
+@inject IWebHostEnvironment HostEnvironment
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -187,6 +190,13 @@
 			isSubmitting = true;
 			statusMessage = string.Empty;
 
+			if (TryBlockChaosMode(out var blockedMode))
+			{
+				statusCssClass = "error";
+				statusMessage = $"Chaos mode '{blockedMode}' is disabled in this environment.";
+				return;
+			}
+
 			await ApplySyntheticFailureAsync();
 
 			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
@@ -206,6 +216,37 @@
 		{
 			isSubmitting = false;
 		}
+	}
+
+	private bool TryBlockChaosMode(out string mode)
+	{
+		mode = (FailureMode ?? string.Empty).Trim();
+		if (!ChaosModePolicy.HasChaosParameter(mode))
+		{
+			return false;
+		}
+
+		var enableChaosMode = Configuration["ENABLE_CHAOS_MODE"] ?? Configuration["EnableChaosMode"];
+		var environmentName = Configuration["ENVIRONMENT"] ?? Configuration["Environment"];
+		if (ChaosModePolicy.IsChaosModeEnabled(enableChaosMode, environmentName, HostEnvironment.EnvironmentName))
+		{
+			return false;
+		}
+
+		var sanitizedMode = SanitizeForLog(mode);
+		Logger.LogWarning(
+			"Blocked chaos mode attempt '{FailureMode}'. ENABLE_CHAOS_MODE={EnableChaosMode}, ENVIRONMENT={Environment}, ASPNETCORE_ENVIRONMENT={AspNetCoreEnvironment}",
+			sanitizedMode,
+			enableChaosMode ?? "(null)",
+			environmentName ?? "(null)",
+			HostEnvironment.EnvironmentName);
+		return true;
+	}
+
+	private static string SanitizeForLog(string value)
+	{
+		return value.Replace("\r", "\\r", StringComparison.Ordinal)
+			.Replace("\n", "\\n", StringComparison.Ordinal);
 	}
 
 	[NewRelic.Api.Agent.Transaction]

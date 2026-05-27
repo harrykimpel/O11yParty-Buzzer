@@ -40,6 +40,13 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 Example: `http://localhost:5071/?chaos=random`
 
+Chaos mode is blocked by default. To enable it outside production, set:
+
+- `ENABLE_CHAOS_MODE=true`
+- `ENVIRONMENT` to a non-production value (for example `development`)
+
+If `ENVIRONMENT=production` (or `ASPNETCORE_ENVIRONMENT=Production`), requests with `?chaos=` are rejected and logged.
+
 ## Event Payload
 
 A single event object is sent with fields:
