@@ -7,6 +7,7 @@ Owner: [Components/Pages/Home.razor](../Components/Pages/Home.razor)
 - Chaos modes are activated exclusively via the `chaos` query parameter
 - Chaos modes are demo/testing features — they must not affect behavior when the parameter is absent
 - All chaos modes should add a custom attribute to the New Relic transaction for traceability
+- Chaos modes are **blocked in Production**: any `?chaos=` parameter in a Production environment is silently ignored and a warning is logged
 
 ## Scenarios
 
