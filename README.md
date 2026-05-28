@@ -29,7 +29,9 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+> ⚠️ **Development only.** Chaos injection is disabled in all non-Development environments. Appending `?chaos=` in staging or production is silently ignored to prevent unintentional performance incidents.
+
+Append `?chaos=<mode>` to the URL to simulate failure conditions (requires `ASPNETCORE_ENVIRONMENT=Development`):
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|
