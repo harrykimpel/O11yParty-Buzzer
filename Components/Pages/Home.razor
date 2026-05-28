@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject Microsoft.Extensions.Options.IOptionsSnapshot<O11yPartyBuzzer.Services.ChaosOptions> ChaosOptionsSnapshot
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -81,6 +82,10 @@
 	private static readonly System.Text.RegularExpressions.Regex BusinessEmailRegex = new(
 		@"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
 		System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+	/// <summary>Known chaos modes — used to sanitize user input before writing to logs.</summary>
+	private static readonly IReadOnlySet<string> KnownChaosModes =
+		new HashSet<string>(StringComparer.Ordinal) { "latency", "exception", "random", "timeout" };
 
 	private string teamName = string.Empty;
 	private string statusMessage = string.Empty;
@@ -214,6 +219,16 @@
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		if (!ChaosOptionsSnapshot.Value.Enabled)
+		{
+			// Sanitize the user-supplied value before writing it to the log to prevent log forging.
+			var safeMode = KnownChaosModes.Contains(mode) ? mode : "(unrecognized)";
+			Logger.LogWarning(
+				"Chaos mode is disabled in this environment — ignoring ?chaos={FailureMode} request parameter.",
+				safeMode);
 			return;
 		}
 
