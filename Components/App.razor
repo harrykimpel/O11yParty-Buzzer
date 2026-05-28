@@ -18,11 +18,40 @@
 <body>
     <Routes />
     <ReconnectModal />
-    <script src="@Assets["_framework/blazor.web.js"]" onerror="window.__blazorWebFailed = true"></script>
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false" onload="window.__startBlazorApp?.()" onerror="window.__blazorWebFailed = true"></script>
     <script>
+        const signalRKeepAliveIntervalMs = 15000;
+        const signalRServerTimeoutMs = 60000;
+
+        window.__startBlazorApp = function () {
+            if (!window.Blazor) {
+                return window.__blazorStartPromise;
+            }
+
+            if (window.__blazorStartPromise) {
+                return window.__blazorStartPromise;
+            }
+
+            window.__blazorStartPromise = Blazor.start({
+                circuit: {
+                    configureSignalR: function (builder) {
+                        // Keep this in sync with Program.cs HubOptions.KeepAliveInterval and ClientTimeoutInterval.
+                        builder.withKeepAliveInterval(signalRKeepAliveIntervalMs);
+                        builder.withServerTimeout(signalRServerTimeoutMs);
+                    }
+                }
+            });
+
+            return window.__blazorStartPromise;
+        };
+
         if (window.__blazorWebFailed) {
             var fallback = document.createElement('script');
             fallback.src = './_framework/blazor.server.js';
+            fallback.setAttribute('autostart', 'false');
+            fallback.onload = function () {
+                window.__startBlazorApp?.();
+            };
             document.body.appendChild(fallback);
         }
     </script>
