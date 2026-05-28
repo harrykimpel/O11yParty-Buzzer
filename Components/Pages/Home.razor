@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment Env
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -214,6 +215,20 @@
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		var chaosEnabled = Env.IsDevelopment()
+			|| string.Equals(
+				System.Environment.GetEnvironmentVariable("ENABLE_CHAOS_TESTING"),
+				"true",
+				StringComparison.OrdinalIgnoreCase);
+
+		if (!chaosEnabled)
+		{
+			Logger.LogWarning(
+				"Chaos testing blocked in production (mode={FailureMode}). Set ENABLE_CHAOS_TESTING=true to enable chaos testing.",
+				mode);
 			return;
 		}
 
