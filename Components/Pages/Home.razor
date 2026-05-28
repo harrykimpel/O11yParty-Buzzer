@@ -82,6 +82,14 @@
 		@"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
 		System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
+	/// <summary>
+	/// Maximum time to wait for a New Relic API call before cancelling to avoid
+	/// blocking the Blazor SignalR circuit indefinitely.
+	/// </summary>
+	private static readonly TimeSpan PublisherTimeout = TimeSpan.FromSeconds(10);
+
+	private const string TimeoutErrorMessage = "Request timed out. Please try again.";
+
 	private string teamName = string.Empty;
 	private string statusMessage = string.Empty;
 	private string statusCssClass = "ok";
@@ -142,14 +150,21 @@
 		try
 		{
 			isSubmittingLeadCapture = true;
+			using var cts = new CancellationTokenSource(PublisherTimeout);
 			await EventPublisher.PublishLeadCaptureAsync(
 				leadForm.FirstName,
 				leadForm.LastName,
 				leadForm.BusinessEmailAddress,
 				leadForm.CompanyName,
 				leadForm.JobTitle,
-				leadForm.Country);
+				leadForm.Country,
+				cts.Token);
 			isLeadCaptured = true;
+		}
+		catch (OperationCanceledException)
+		{
+			leadFormError = TimeoutErrorMessage;
+			Logger.LogWarning("Lead capture publish timed out");
 		}
 		catch (Exception ex)
 		{
@@ -189,13 +204,20 @@
 
 			await ApplySyntheticFailureAsync();
 
-			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
+			using var cts = new CancellationTokenSource(PublisherTimeout);
+			await EventPublisher.PublishBuzzAsync(normalizedTeamName, cts.Token);
 			statusCssClass = "ok";
 			statusMessage = $"Buzz received for {normalizedTeamName}.";
 
 			NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 			NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 			transaction.AddCustomAttribute("TeamName", normalizedTeamName);
+		}
+		catch (OperationCanceledException)
+		{
+			statusCssClass = "error";
+			statusMessage = TimeoutErrorMessage;
+			Logger.LogWarning("Buzz publish timed out for team {TeamName}", teamName.Trim());
 		}
 		catch (Exception ex)
 		{
