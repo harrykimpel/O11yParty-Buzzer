@@ -16,8 +16,15 @@ Set these values before running:
 - `NewRelic__AccountId`
 - `NewRelic__Region` (`US` or `EU`, optional, defaults to `US`)
 - `NewRelic__EventType` (optional, defaults to `TeamBuzzed`)
+- `NewRelic__LeadCaptureEventType` (optional, defaults to `LeadCaptureSubmitted`)
+- `NewRelic__EventPublishTimeoutSeconds` (optional, defaults to `15`)
+- `NewRelic__CircuitBreakerFailureThreshold` (optional, defaults to `3`)
+- `NewRelic__CircuitBreakerBreakDurationSeconds` (optional, defaults to `60`)
 
 You can set them as environment variables, user-secrets, or directly in `appsettings.json`.
+
+The app also applies a 30-second request timeout policy for non-`/_blazor` endpoints and logs Blazor circuit lifecycle events for connection diagnostics.
+These Blazor/request timeout values can be tuned under the `Resilience` section in `appsettings.json`.
 
 ## Run
 
