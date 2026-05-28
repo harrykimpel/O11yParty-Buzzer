@@ -1,6 +1,7 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosOptions> ChaosOptions
 @inject ILogger<Home> Logger
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
@@ -94,7 +95,7 @@
 	/// <summary>
 	/// Synthetic failure mode. Supported values:
 	/// latency – adds an artificial delay (see latencyMs)
-	/// exception – throws an unhandled exception on every buzz
+	/// exception – returns a controlled failure message
 	/// random – fails ~50 % of buzzes at random
 	/// timeout – simulates a long-running request that eventually times out
 	/// Use: ?chaos=latency|exception|random|timeout
@@ -187,7 +188,13 @@
 			isSubmitting = true;
 			statusMessage = string.Empty;
 
-			await ApplySyntheticFailureAsync();
+			var syntheticFailureMessage = await ApplySyntheticFailureAsync();
+			if (!string.IsNullOrWhiteSpace(syntheticFailureMessage))
+			{
+				statusCssClass = "error";
+				statusMessage = syntheticFailureMessage;
+				return;
+			}
 
 			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
 			statusCssClass = "ok";
@@ -209,23 +216,32 @@
 	}
 
 	[NewRelic.Api.Agent.Transaction]
-	private async Task ApplySyntheticFailureAsync()
+	private async Task<string?> ApplySyntheticFailureAsync()
 	{
+		if (!ChaosOptions.Value.Enabled)
+		{
+			if (!string.IsNullOrWhiteSpace(FailureMode))
+			{
+				Logger.LogWarning("Synthetic failure mode requested while chaos mode is disabled.");
+			}
+			return null;
+		}
+
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
-			return;
+			return null;
 		}
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)
 		{
 			case "latency":
 				{
+					Logger.LogWarning("Synthetic failure mode active: latency");
 					var delay = LatencyMs is > 0 ? LatencyMs.Value : 3000;
 					transaction.AddCustomAttribute("syntheticLatencyMs", delay);
 					Logger.LogWarning("Synthetic latency: {DelayMs} ms", delay);
@@ -234,11 +250,12 @@
 				}
 
 			case "exception":
-				Logger.LogError("Synthetic exception triggered");
-				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?chaos=exception");
+				Logger.LogWarning("Synthetic failure mode 'exception' triggered");
+				return "Synthetic failure mode 'exception' triggered.";
 
 			case "random":
 				{
+					Logger.LogWarning("Synthetic failure mode active: random");
 					var roll = Random.Shared.NextDouble();
 					transaction.AddCustomAttribute("syntheticChaosRoll", roll);
 					if (roll < 0.5)
@@ -252,6 +269,7 @@
 
 			case "timeout":
 				{
+					Logger.LogWarning("Synthetic failure mode active: timeout");
 					const int timeoutMs = 35_000;
 					transaction.AddCustomAttribute("syntheticTimeoutMs", timeoutMs);
 					Logger.LogWarning("Synthetic timeout: waiting {TimeoutMs} ms", timeoutMs);
@@ -268,9 +286,11 @@
 				}
 
 			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning("Unknown synthetic failure mode requested — ignored");
 				break;
 		}
+
+		return null;
 	}
 
 	private sealed class LeadCaptureForm
