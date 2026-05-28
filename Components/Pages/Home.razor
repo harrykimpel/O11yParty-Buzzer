@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment Env
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -211,6 +212,15 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
+		if (Env.IsProduction())
+		{
+			if (!string.IsNullOrEmpty((FailureMode ?? string.Empty).Trim()))
+			{
+				Logger.LogWarning("Chaos mode '{FailureMode}' ignored — chaos injection is disabled in Production", FailureMode);
+			}
+			return;
+		}
+
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{

@@ -38,6 +38,8 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 | `random`    | Fails ~50% of buzzes at random                                |
 | `timeout`   | Simulates a long-running request that times out after 35 s    |
 
+> **Production safeguard:** Chaos modes are **disabled** when `ASPNETCORE_ENVIRONMENT=Production`. The `chaos` query parameter is silently ignored and a warning is logged — buzzes proceed normally. Chaos injection is only active in non-production environments (e.g. `Development`, `Staging`).
+
 Example: `http://localhost:5071/?chaos=random`
 
 ## Event Payload
