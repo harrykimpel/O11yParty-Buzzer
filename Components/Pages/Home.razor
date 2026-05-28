@@ -1,6 +1,7 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+@inject IWebHostEnvironment HostEnvironment
 @inject ILogger<Home> Logger
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
@@ -90,6 +91,9 @@
 	private bool isLeadCaptured;
 	private string leadFormError = string.Empty;
 	private readonly LeadCaptureForm leadForm = new();
+	private const string ChaosDisabledMessage = "Chaos engineering is disabled in this environment.";
+	private const string SyntheticFailureMessage = "Synthetic buzz failure triggered.";
+	private const string SyntheticTimeoutMessage = "Synthetic buzz timeout triggered.";
 
 	/// <summary>
 	/// Synthetic failure mode. Supported values:
@@ -187,7 +191,17 @@
 			isSubmitting = true;
 			statusMessage = string.Empty;
 
-			await ApplySyntheticFailureAsync();
+			try
+			{
+				await ApplySyntheticFailureAsync();
+			}
+			catch (SyntheticChaosException ex)
+			{
+				Logger.LogWarning(ex, "Handled synthetic chaos failure.");
+				statusCssClass = "error";
+				statusMessage = ex.UserMessage;
+				return;
+			}
 
 			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
 			statusCssClass = "ok";
@@ -199,6 +213,7 @@
 		}
 		catch (Exception ex)
 		{
+			Logger.LogError(ex, "Could not publish buzz event.");
 			statusCssClass = "error";
 			statusMessage = $"Could not send buzz event: {ex.Message}";
 		}
@@ -215,6 +230,13 @@
 		if (string.IsNullOrEmpty(mode))
 		{
 			return;
+		}
+
+		if (!HostEnvironment.IsDevelopment())
+		{
+			throw new SyntheticChaosException(
+				ChaosDisabledMessage,
+				$"Rejected synthetic failure mode '{mode}' outside Development.");
 		}
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
@@ -234,8 +256,10 @@
 				}
 
 			case "exception":
-				Logger.LogError("Synthetic exception triggered");
-				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?chaos=exception");
+				Logger.LogWarning("Synthetic exception triggered and will be handled by the buzzer UI.");
+				throw new SyntheticChaosException(
+					SyntheticFailureMessage,
+					"Synthetic failure: unhandled exception injected via ?chaos=exception");
 
 			case "random":
 				{
@@ -243,8 +267,10 @@
 					transaction.AddCustomAttribute("syntheticChaosRoll", roll);
 					if (roll < 0.5)
 					{
-						Logger.LogError("Synthetic random failure (roll={Roll:F2})", roll);
-						throw new InvalidOperationException($"Synthetic failure: random mode rolled {roll:F2} (< 0.5) — buzz dropped");
+						Logger.LogWarning("Synthetic random failure occurred and will be handled by the buzzer UI (roll={Roll:F2})", roll);
+						throw new SyntheticChaosException(
+							SyntheticFailureMessage,
+							$"Synthetic failure: random mode rolled {roll:F2} (< 0.5) — buzz dropped");
 					}
 					Logger.LogInformation("Synthetic random survived (roll={Roll:F2})", roll);
 					break;
@@ -260,9 +286,12 @@
 					{
 						await Task.Delay(Timeout.Infinite, cts.Token);
 					}
-					catch (OperationCanceledException)
+					catch (OperationCanceledException ex)
 					{
-						throw new TimeoutException("Synthetic failure: request timed out after 35 s (injected via ?chaos=timeout)");
+						throw new SyntheticChaosException(
+							SyntheticTimeoutMessage,
+							"Synthetic failure: request timed out after 35 s (injected via ?chaos=timeout)",
+							ex);
 					}
 					break;
 				}
@@ -281,5 +310,11 @@
 		public string CompanyName { get; set; } = string.Empty;
 		public string JobTitle { get; set; } = string.Empty;
 		public string Country { get; set; } = string.Empty;
+	}
+
+	private sealed class SyntheticChaosException(string userMessage, string message, Exception? innerException = null)
+		: Exception(message, innerException)
+	{
+		public string UserMessage { get; } = userMessage;
 	}
 }

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
+const string ChaosProtectionLogCategory = "ChaosProtection";
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -19,9 +21,30 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 var app = builder.Build();
+var chaosProtectionLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(ChaosProtectionLogCategory);
 
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
+
+app.Use(async (context, next) =>
+{
+    if (!app.Environment.IsDevelopment() && context.Request.Query.ContainsKey("chaos"))
+    {
+        chaosProtectionLogger.LogWarning(
+            "Rejected chaos query parameter for {Path} in {Environment}",
+            context.Request.Path,
+            app.Environment.EnvironmentName);
+
+        await TypedResults.Problem(
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Chaos engineering disabled",
+            detail: "The chaos query parameter is only available in Development environments.")
+            .ExecuteAsync(context);
+        return;
+    }
+
+    await next();
+});
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -41,3 +64,7 @@ app.MapRazorComponents<App>()
     .DisableAntiforgery();
 
 app.Run();
+
+public partial class Program
+{
+}
