@@ -7,6 +7,7 @@ Owner: [Components/Pages/Home.razor](../Components/Pages/Home.razor)
 - Chaos modes are activated exclusively via the `chaos` query parameter
 - Chaos modes are demo/testing features — they must not affect behavior when the parameter is absent
 - All chaos modes should add a custom attribute to the New Relic transaction for traceability
+- **Chaos modes are only permitted in the `Development` environment** — requests with `?chaos=` in any other environment (e.g., Production, Staging) are silently ignored with a warning log entry
 
 ## Scenarios
 
@@ -64,4 +65,14 @@ Then:  the operation hangs for ~35 seconds
 Given: URL includes ?chaos=unknown_value
 When:  attendee clicks BUZZ
 Then:  buzz proceeds normally as if no chaos parameter was present
+```
+
+### CHAOS-07: Chaos parameter is silently blocked outside Development
+
+```plain
+Given: URL includes ?chaos=<any_valid_mode>
+  And: the application is NOT running in the Development environment
+When:  attendee clicks BUZZ
+Then:  buzz proceeds normally with no artificial delay, failure, or timeout
+  And: a warning is written to the application log indicating chaos was requested but ignored
 ```
