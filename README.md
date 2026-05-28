@@ -29,6 +29,8 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
+> **⚠️ Development environment only.** The `?chaos=` parameter is silently ignored in any non-Development environment (e.g. production, staging) to prevent accidental activation and false-positive monitoring alerts.
+
 Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
