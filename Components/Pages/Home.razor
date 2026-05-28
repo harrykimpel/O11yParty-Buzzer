@@ -1,6 +1,7 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+@inject IWebHostEnvironment HostEnvironment
 @inject ILogger<Home> Logger
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
@@ -214,6 +215,12 @@
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		if (HostEnvironment.IsProduction())
+		{
+			Logger.LogWarning("Blocked synthetic failure mode '{FailureMode}' in Production", mode);
 			return;
 		}
 
