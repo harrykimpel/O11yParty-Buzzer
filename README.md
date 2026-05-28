@@ -29,7 +29,7 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the URL to simulate failure conditions:
+Append `?chaos=<mode>` to the URL to simulate failure conditions in non-production environments. In `Production`, chaos parameters are ignored and logged as blocked attempts.
 
 | Mode        | Behavior                                                      |
 |-------------|---------------------------------------------------------------|

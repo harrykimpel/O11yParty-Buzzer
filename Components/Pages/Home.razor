@@ -1,7 +1,8 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IHostEnvironment HostEnvironment
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -211,16 +212,25 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
-		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
+		var mode = O11yPartyBuzzer.Services.SyntheticFailureModePolicy.Normalize(FailureMode);
 		if (string.IsNullOrEmpty(mode))
 		{
 			return;
 		}
+		var safeModeForLog = O11yPartyBuzzer.Services.SyntheticFailureModePolicy.SanitizeForLog(mode);
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+
+		if (!O11yPartyBuzzer.Services.SyntheticFailureModePolicy.IsEnabled(mode, HostEnvironment.IsProduction()))
+		{
+			transaction.AddCustomAttribute("syntheticFailureBlocked", true);
+			Logger.LogWarning("Synthetic failure mode '{FailureMode}' requested in production and ignored", safeModeForLog);
+			return;
+		}
+
+		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", safeModeForLog);
 
 		switch (mode)
 		{
@@ -268,7 +278,7 @@
 				}
 
 			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", safeModeForLog);
 				break;
 		}
 	}
