@@ -9,6 +9,8 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
+builder.Services.Configure<ChaosOptions>(builder.Configuration.GetSection(ChaosOptions.SectionName));
+builder.Services.AddSingleton<IChaosGuardService, ChaosGuardService>();
 
 // Trust forwarded headers from App Runner's reverse proxy
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

@@ -1,6 +1,7 @@
 ﻿@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+@inject O11yPartyBuzzer.Services.IChaosGuardService ChaosGuard
 @inject ILogger<Home> Logger
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
@@ -98,6 +99,7 @@
 	/// random – fails ~50 % of buzzes at random
 	/// timeout – simulates a long-running request that eventually times out
 	/// Use: ?chaos=latency|exception|random|timeout
+	/// Requires chaos to be enabled in configuration and the correct environment.
 	/// </summary>
 	[SupplyParameterFromQuery(Name = "chaos")]
 	public string? FailureMode { get; set; }
@@ -105,6 +107,13 @@
 	/// <summary>Delay in milliseconds used when failure=latency (default 3000).</summary>
 	[SupplyParameterFromQuery(Name = "latencyMs")]
 	public int? LatencyMs { get; set; }
+
+	/// <summary>
+	/// Optional authorization token for chaos features. Must match the configured
+	/// Chaos:Token value when a token is required.
+	/// </summary>
+	[SupplyParameterFromQuery(Name = "chaosToken")]
+	public string? ChaosToken { get; set; }
 
 	[NewRelic.Api.Agent.Transaction]
 	private async Task SubmitLeadFormAsync()
@@ -217,10 +226,25 @@
 			return;
 		}
 
+		// Sanitize user-supplied value before any logging to prevent log-forging.
+		var safeMode = mode.Replace('\r', '_').Replace('\n', '_');
+
+		// Guard: check environment, token, and rate limit before executing any chaos mode.
+		if (!ChaosGuard.TryAllow(mode, ChaosToken, out var blockReason))
+		{
+			Logger.LogInformation(
+				"[chaos] Chaos mode suppressed. chaos.mode={ChaosMode} chaos.blocked=true chaos.reason={Reason}",
+				safeMode, blockReason);
+			return;
+		}
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		transaction.AddCustomAttribute("syntheticChaos", true);
+		Logger.LogWarning(
+			"[chaos] Synthetic failure mode active. chaos.mode={ChaosMode} chaos.synthetic=true",
+			safeMode);
 
 		switch (mode)
 		{
@@ -228,13 +252,16 @@
 				{
 					var delay = LatencyMs is > 0 ? LatencyMs.Value : 3000;
 					transaction.AddCustomAttribute("syntheticLatencyMs", delay);
-					Logger.LogWarning("Synthetic latency: {DelayMs} ms", delay);
+					Logger.LogWarning(
+						"[chaos] Synthetic latency injected. chaos.mode=latency chaos.latencyMs={DelayMs} chaos.synthetic=true",
+						delay);
 					await Task.Delay(delay);
 					break;
 				}
 
 			case "exception":
-				Logger.LogError("Synthetic exception triggered");
+				Logger.LogError(
+					"[chaos] Synthetic exception triggered. chaos.mode=exception chaos.synthetic=true chaos.errorType=InvalidOperationException");
 				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?chaos=exception");
 
 			case "random":
@@ -243,10 +270,14 @@
 					transaction.AddCustomAttribute("syntheticChaosRoll", roll);
 					if (roll < 0.5)
 					{
-						Logger.LogError("Synthetic random failure (roll={Roll:F2})", roll);
+						Logger.LogError(
+							"[chaos] Synthetic random failure triggered. chaos.mode=random chaos.roll={Roll:F2} chaos.synthetic=true chaos.outcome=failure",
+							roll);
 						throw new InvalidOperationException($"Synthetic failure: random mode rolled {roll:F2} (< 0.5) — buzz dropped");
 					}
-					Logger.LogInformation("Synthetic random survived (roll={Roll:F2})", roll);
+					Logger.LogInformation(
+						"[chaos] Synthetic random survived. chaos.mode=random chaos.roll={Roll:F2} chaos.synthetic=true chaos.outcome=success",
+						roll);
 					break;
 				}
 
@@ -254,7 +285,9 @@
 				{
 					const int timeoutMs = 35_000;
 					transaction.AddCustomAttribute("syntheticTimeoutMs", timeoutMs);
-					Logger.LogWarning("Synthetic timeout: waiting {TimeoutMs} ms", timeoutMs);
+					Logger.LogWarning(
+						"[chaos] Synthetic timeout injected. chaos.mode=timeout chaos.timeoutMs={TimeoutMs} chaos.synthetic=true",
+						timeoutMs);
 					using var cts = new CancellationTokenSource(timeoutMs);
 					try
 					{
@@ -268,7 +301,9 @@
 				}
 
 			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning(
+					"[chaos] Unknown synthetic failure mode ignored. chaos.mode={ChaosMode} chaos.synthetic=true chaos.outcome=noop",
+					safeMode);
 				break;
 		}
 	}
