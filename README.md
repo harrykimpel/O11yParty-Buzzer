@@ -29,6 +29,11 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
+Chaos injection is controlled by the `ChaosEngineering` configuration section:
+
+- `ChaosEngineering__Enabled` (default `false`)
+- `ChaosEngineering__AllowInProduction` (must remain `false` in production)
+
 Append `?chaos=<mode>` to the URL to simulate failure conditions:
 
 | Mode        | Behavior                                                      |
@@ -39,6 +44,8 @@ Append `?chaos=<mode>` to the URL to simulate failure conditions:
 | `timeout`   | Simulates a long-running request that times out after 35 s    |
 
 Example: `http://localhost:5071/?chaos=random`
+
+In production, chaos query parameters are ignored even if requested.
 
 ## Event Payload
 
