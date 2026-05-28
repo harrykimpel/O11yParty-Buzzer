@@ -1,7 +1,9 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosTestingOptions> ChaosTestingOptionsAccessor
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment HostEnvironment
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -81,6 +83,14 @@
 	private static readonly System.Text.RegularExpressions.Regex BusinessEmailRegex = new(
 		@"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
 		System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+	private static readonly HashSet<string> SupportedChaosModes =
+	[
+		"latency",
+		"exception",
+		"random",
+		"timeout"
+	];
+	private const string TestingEnvironmentName = "Testing";
 
 	private string teamName = string.Empty;
 	private string statusMessage = string.Empty;
@@ -92,7 +102,9 @@
 	private readonly LeadCaptureForm leadForm = new();
 
 	/// <summary>
-	/// Synthetic failure mode. Supported values:
+	/// Synthetic failure mode. This is a demo-only feature that stays disabled unless
+	/// ChaosTesting:Enabled=true and the app is running in Development, Staging, or Testing.
+	/// Supported values:
 	/// latency – adds an artificial delay (see latencyMs)
 	/// exception – throws an unhandled exception on every buzz
 	/// random – fails ~50 % of buzzes at random
@@ -217,10 +229,33 @@
 			return;
 		}
 
+		var isSupportedMode = SupportedChaosModes.Contains(mode);
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		transaction
+			.AddCustomAttribute("chaosTestRequested", true)
+			.AddCustomAttribute("chaosFeatureEnabled", ChaosTestingOptionsAccessor.Value.Enabled)
+			.AddCustomAttribute("chaosEnvironment", HostEnvironment.EnvironmentName)
+			.AddCustomAttribute("chaosModeRecognized", isSupportedMode)
+			.AddCustomAttribute("chaosType", isSupportedMode ? mode : "unknown");
+
+		if (!isSupportedMode)
+		{
+			Logger.LogWarning("Unknown synthetic failure mode ignored.");
+			return;
+		}
+
+		if (!IsChaosTestingEnabled())
+		{
+			transaction.AddCustomAttribute("chaosTest", false);
+			Logger.LogWarning(
+				"Chaos mode ignored because chaos testing is disabled for environment {EnvironmentName}.",
+				HostEnvironment.EnvironmentName);
+			return;
+		}
+
+		transaction.AddCustomAttribute("chaosTest", true);
 
 		switch (mode)
 		{
@@ -266,11 +301,15 @@
 					}
 					break;
 				}
-
-			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
-				break;
 		}
+	}
+
+	private bool IsChaosTestingEnabled()
+	{
+		return ChaosTestingOptionsAccessor.Value.Enabled
+			&& (HostEnvironment.IsDevelopment()
+				|| HostEnvironment.IsStaging()
+				|| HostEnvironment.IsEnvironment(TestingEnvironmentName));
 	}
 
 	private sealed class LeadCaptureForm
