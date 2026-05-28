@@ -7,6 +7,7 @@ Owner: [Components/Pages/Home.razor](../Components/Pages/Home.razor)
 - Chaos modes are activated exclusively via the `chaos` query parameter
 - Chaos modes are demo/testing features — they must not affect behavior when the parameter is absent
 - All chaos modes should add a custom attribute to the New Relic transaction for traceability
+- **Chaos modes are completely disabled when `ASPNETCORE_ENVIRONMENT` is `Production`** — the request proceeds normally and a log entry at Information level is emitted
 
 ## Scenarios
 
@@ -64,4 +65,15 @@ Then:  the operation hangs for ~35 seconds
 Given: URL includes ?chaos=unknown_value
 When:  attendee clicks BUZZ
 Then:  buzz proceeds normally as if no chaos parameter was present
+```
+
+### CHAOS-07: Chaos parameter is ignored in Production
+
+```plain
+Given: ASPNETCORE_ENVIRONMENT is "Production"
+  And: URL includes any ?chaos=<mode> parameter
+When:  attendee clicks BUZZ
+Then:  buzz proceeds normally — chaos mode is NOT applied
+  And: an Information-level log entry is emitted indicating chaos was requested but suppressed
+  And: no synthetic error or delay is introduced
 ```
