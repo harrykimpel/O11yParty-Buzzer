@@ -13,4 +13,10 @@ public sealed class NewRelicOptions
     public string EventType { get; set; } = "TeamBuzzed";
 
     public string LeadCaptureEventType { get; set; } = "LeadCaptureSubmitted";
+
+    /// <summary>
+    /// Enables or disables the synthetic chaos-testing endpoints (?chaos=…).
+    /// Should be <c>false</c> in production to prevent accidental failure injection.
+    /// </summary>
+    public bool ChaosEnabled { get; set; } = false;
 }

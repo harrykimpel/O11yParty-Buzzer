@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.NewRelicOptions> NewRelicConfig
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -217,9 +218,20 @@
 			return;
 		}
 
+		if (!NewRelicConfig.Value.ChaosEnabled)
+		{
+			// Sanitize before logging to prevent log-forging from user-supplied query parameter
+			var safeModeLog = System.Text.RegularExpressions.Regex.Replace(mode, @"[^a-z0-9]", "_");
+			Logger.LogWarning("Chaos mode '{Mode}' requested but ChaosEnabled is false — skipping", safeModeLog);
+			return;
+		}
+
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
+		transaction.AddCustomAttribute("syntheticFailureMode", mode)
+			.AddCustomAttribute("chaos.enabled", true)
+			.AddCustomAttribute("chaos.type", mode)
+			.AddCustomAttribute("error.synthetic", true);
 		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
 
 		switch (mode)
