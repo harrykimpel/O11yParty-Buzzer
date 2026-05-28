@@ -20,6 +20,10 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # Example: NewRelic__UserApiKey=your-user-api-key
 ENV NewRelic__AccountId=
 ENV NewRelic__IngestApiKey=
+ENV NewRelic__RequestTimeoutSeconds=3
+ENV NewRelic__SlowRequestWarningThresholdMs=1000
+ENV NewRelic__MaxConnectionsPerServer=32
+ENV NewRelic__PooledConnectionLifetimeSeconds=300
 
 # Enable the agent
 ENV NEW_RELIC_LICENSE_KEY=
@@ -30,6 +34,10 @@ CORECLR_NEWRELIC_HOME=/app/newrelic \
 CORECLR_PROFILER_PATH=/app/newrelic/linux-arm64/libNewRelicProfiler.so \
 NEW_RELIC_APP_NAME="O11yParty-Buzzer" \
 NEW_RELIC_LOG_LEVEL=info
+
+# Runtime tuning for bursty traffic on Fargate
+ENV DOTNET_GCServer=1
+ENV DOTNET_ThreadPool_MinThreads=16
 
 EXPOSE 8080
 

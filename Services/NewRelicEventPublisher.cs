@@ -1,13 +1,21 @@
 using System.Net.Http.Json;
+using System.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace O11yPartyBuzzer.Services;
 
 public sealed class NewRelicEventPublisher(
     HttpClient httpClient,
+    IMemoryCache memoryCache,
+    ILogger<NewRelicEventPublisher> logger,
     IOptions<NewRelicOptions> options) : INewRelicEventPublisher
 {
+    private const string EndpointCacheKey = "NewRelicEndpoint";
     private readonly HttpClient _httpClient = httpClient;
+    private readonly IMemoryCache _memoryCache = memoryCache;
+    private readonly ILogger<NewRelicEventPublisher> _logger = logger;
     private readonly NewRelicOptions _options = options.Value;
 
     public async Task PublishBuzzAsync(string teamName, CancellationToken cancellationToken = default)
@@ -19,7 +27,7 @@ public sealed class NewRelicEventPublisher(
 
         ValidateNewRelicConfiguration();
 
-        var endpoint = BuildEndpoint(_options.Region, _options.AccountId);
+        var endpoint = GetEndpoint();
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Headers.Add("X-Insert-Key", _options.IngestApiKey);
         request.Content = JsonContent.Create(new[]
@@ -33,7 +41,7 @@ public sealed class NewRelicEventPublisher(
             }
         });
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendWithDiagnosticsAsync(request, "buzz", cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
@@ -78,7 +86,7 @@ public sealed class NewRelicEventPublisher(
 
         ValidateNewRelicConfiguration();
 
-        var endpoint = BuildEndpoint(_options.Region, _options.AccountId);
+        var endpoint = GetEndpoint();
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Headers.Add("X-Insert-Key", _options.IngestApiKey);
         request.Content = JsonContent.Create(new[]
@@ -96,7 +104,7 @@ public sealed class NewRelicEventPublisher(
             }
         });
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendWithDiagnosticsAsync(request, "lead-capture", cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
@@ -123,5 +131,55 @@ public sealed class NewRelicEventPublisher(
         };
 
         return $"https://{host}/v1/accounts/{accountId}/events";
+    }
+
+    private string GetEndpoint()
+    {
+        var endpoint = _memoryCache.GetOrCreate(EndpointCacheKey, entry =>
+        {
+            entry.SlidingExpiration = TimeSpan.FromHours(1);
+            return BuildEndpoint(_options.Region, _options.AccountId);
+        });
+
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException("Unable to build New Relic endpoint from current configuration.");
+        }
+
+        return endpoint;
+    }
+
+    private async Task<HttpResponseMessage> SendWithDiagnosticsAsync(
+        HttpRequestMessage request,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        var warningThresholdMs = _options.SlowRequestWarningThresholdMs > 0
+            ? _options.SlowRequestWarningThresholdMs
+            : NewRelicOptions.DefaultSlowRequestWarningThresholdMs;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (stopwatch.ElapsedMilliseconds >= warningThresholdMs)
+            {
+                _logger.LogWarning(
+                    "Slow New Relic {Operation} publish took {ElapsedMs} ms (threshold {ThresholdMs} ms).",
+                    operationName,
+                    stopwatch.ElapsedMilliseconds,
+                    warningThresholdMs);
+            }
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed New Relic {Operation} publish after {ElapsedMs} ms.",
+                operationName,
+                stopwatch.ElapsedMilliseconds);
+            throw;
+        }
     }
 }

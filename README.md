@@ -16,6 +16,10 @@ Set these values before running:
 - `NewRelic__AccountId`
 - `NewRelic__Region` (`US` or `EU`, optional, defaults to `US`)
 - `NewRelic__EventType` (optional, defaults to `TeamBuzzed`)
+- `NewRelic__RequestTimeoutSeconds` (optional, defaults to `3`)
+- `NewRelic__SlowRequestWarningThresholdMs` (optional, defaults to `1000`)
+- `NewRelic__MaxConnectionsPerServer` (optional, defaults to `32`)
+- `NewRelic__PooledConnectionLifetimeSeconds` (optional, defaults to `300`)
 
 You can set them as environment variables, user-secrets, or directly in `appsettings.json`.
 
