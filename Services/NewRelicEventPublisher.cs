@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Options;
 
@@ -5,10 +6,30 @@ namespace O11yPartyBuzzer.Services;
 
 public sealed class NewRelicEventPublisher(
     HttpClient httpClient,
-    IOptions<NewRelicOptions> options) : INewRelicEventPublisher
+    IOptions<NewRelicOptions> options,
+    ILogger<NewRelicEventPublisher> logger) : INewRelicEventPublisher
 {
     private readonly HttpClient _httpClient = httpClient;
     private readonly NewRelicOptions _options = options.Value;
+    private readonly ILogger<NewRelicEventPublisher> _logger = logger;
+
+    private const int SlowCallThresholdMs = 1_000;
+
+    private void LogCallDuration(string operation, long elapsedMs, int statusCode)
+    {
+        if (elapsedMs > SlowCallThresholdMs)
+        {
+            _logger.LogWarning(
+                "Slow New Relic API call for {Operation}: {ElapsedMs} ms",
+                operation, elapsedMs);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "{Operation} published successfully in {ElapsedMs} ms (status={StatusCode})",
+                operation, elapsedMs, statusCode);
+        }
+    }
 
     public async Task PublishBuzzAsync(string teamName, CancellationToken cancellationToken = default)
     {
@@ -33,8 +54,23 @@ public sealed class NewRelicEventPublisher(
             }
         });
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        _logger.LogInformation("Publishing buzz event for team {TeamName}", teamName);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            sw.Stop();
+            LogCallDuration("BuzzEvent", sw.ElapsedMilliseconds, (int)response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogError(ex,
+                "Failed to publish buzz event after {ElapsedMs} ms (team={TeamName})",
+                sw.ElapsedMilliseconds, teamName);
+            throw;
+        }
     }
 
     public async Task PublishLeadCaptureAsync(
@@ -96,8 +132,23 @@ public sealed class NewRelicEventPublisher(
             }
         });
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        _logger.LogInformation("Publishing lead capture event");
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            sw.Stop();
+            LogCallDuration("LeadCaptureEvent", sw.ElapsedMilliseconds, (int)response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogError(ex,
+                "Failed to publish lead capture event after {ElapsedMs} ms",
+                sw.ElapsedMilliseconds);
+            throw;
+        }
     }
 
     private void ValidateNewRelicConfiguration()
