@@ -1,7 +1,9 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment Environment
+@inject IConfiguration Configuration
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -90,6 +92,8 @@
 	private bool isLeadCaptured;
 	private string leadFormError = string.Empty;
 	private readonly LeadCaptureForm leadForm = new();
+	private const string ChaosEnabledKey = "Chaos:Enabled";
+	private const string ChaosAllowInProductionKey = "Chaos:AllowInProduction";
 
 	/// <summary>
 	/// Synthetic failure mode. Supported values:
@@ -219,8 +223,23 @@
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
+		transaction.AddCustomAttribute("syntheticChaosTraffic", true);
+		transaction.AddCustomAttribute("syntheticFailureModeRequested", mode);
+
+		if (!IsChaosModeAllowed(out var blockReason))
+		{
+			transaction.AddCustomAttribute("syntheticChaosBlocked", true);
+			transaction.AddCustomAttribute("syntheticChaosBlockReason", blockReason);
+			Logger.LogWarning(
+				"Synthetic chaos request ignored. Mode={Mode}, Environment={Environment}, Reason={Reason}",
+				mode,
+				Environment.EnvironmentName,
+				blockReason);
+			return;
+		}
+
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Synthetic failure mode active: {FailureMode}, Environment={Environment}", mode, Environment.EnvironmentName);
 
 		switch (mode)
 		{
@@ -271,6 +290,27 @@
 				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
 				break;
 		}
+	}
+
+	private bool IsChaosModeAllowed(out string reason)
+	{
+		var chaosEnabled = Configuration.GetValue(ChaosEnabledKey, false);
+		var allowInProduction = Configuration.GetValue(ChaosAllowInProductionKey, false);
+
+		if (!chaosEnabled)
+		{
+			reason = "Chaos feature flag is disabled";
+			return false;
+		}
+
+		if (Environment.IsProduction() && !allowInProduction)
+		{
+			reason = "Chaos mode is blocked in Production unless Chaos:AllowInProduction=true";
+			return false;
+		}
+
+		reason = string.Empty;
+		return true;
 	}
 
 	private sealed class LeadCaptureForm
