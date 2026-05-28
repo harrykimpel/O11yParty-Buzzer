@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment Env
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -208,12 +209,35 @@
 		}
 	}
 
+	/// <summary>
+	/// Returns true only in the Development environment or when the
+	/// ENABLE_CHAOS_TESTING environment variable is explicitly set to "true".
+	/// This prevents chaos modes from running in production.
+	/// </summary>
+	private bool IsChaosEnabled()
+	{
+		if (Env.IsDevelopment())
+		{
+			return true;
+		}
+
+		var chaosEnabled = Environment.GetEnvironmentVariable("ENABLE_CHAOS_TESTING");
+		return string.Equals(chaosEnabled, "true", StringComparison.OrdinalIgnoreCase);
+	}
+
 	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		// Safety guard: chaos modes must never run in production unless explicitly enabled.
+		if (!IsChaosEnabled())
+		{
+			Logger.LogWarning("Chaos mode '{FailureMode}' requested but chaos testing is disabled in this environment — ignored", mode);
 			return;
 		}
 
