@@ -1,7 +1,9 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject Microsoft.Extensions.Hosting.IHostEnvironment HostEnvironment
+@inject Microsoft.Extensions.Options.IOptions<O11yPartyBuzzer.Services.ChaosOptions> ChaosOptionsAccessor
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -90,6 +92,7 @@
 	private bool isLeadCaptured;
 	private string leadFormError = string.Empty;
 	private readonly LeadCaptureForm leadForm = new();
+	private const int MaxChaosLogValueLength = 120;
 
 	/// <summary>
 	/// Synthetic failure mode. Supported values:
@@ -217,10 +220,40 @@
 			return;
 		}
 
+		var chaosConfig = ChaosOptionsAccessor.Value;
+		var sanitizedMode = SanitizeForLog(mode);
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		transaction.AddCustomAttribute("chaosModeRequested", true)
+			.AddCustomAttribute("chaosRequestedMode", sanitizedMode);
+
+		if (!chaosConfig.EnableChaosMode)
+		{
+			transaction.AddCustomAttribute("chaosModeEnabled", false)
+				.AddCustomAttribute("chaosModeActive", false)
+				.AddCustomAttribute("chaosModeAllowed", false)
+				.AddCustomAttribute("chaosModeBlockedReason", "disabled");
+			Logger.LogWarning("[CHAOS-TEST] Chaos mode request ignored because chaos mode is disabled. Requested mode: {FailureMode}", sanitizedMode);
+			return;
+		}
+
+		if (!IsEnvironmentAllowedForChaos(chaosConfig))
+		{
+			transaction.AddCustomAttribute("chaosModeEnabled", true)
+				.AddCustomAttribute("chaosModeActive", false)
+				.AddCustomAttribute("chaosModeAllowed", false)
+				.AddCustomAttribute("chaosModeBlockedReason", "environment-not-allowed")
+				.AddCustomAttribute("chaosCurrentEnvironment", HostEnvironment.EnvironmentName);
+			Logger.LogWarning("[CHAOS-TEST] Chaos mode request ignored in environment '{EnvironmentName}'. Requested mode: {FailureMode}", HostEnvironment.EnvironmentName, sanitizedMode);
+			return;
+		}
+
+		transaction.AddCustomAttribute("chaosModeEnabled", true)
+			.AddCustomAttribute("chaosModeActive", true)
+			.AddCustomAttribute("chaosModeAllowed", true)
+			.AddCustomAttribute("chaosCurrentEnvironment", HostEnvironment.EnvironmentName);
+		transaction.AddCustomAttribute("syntheticFailureMode", sanitizedMode);
+		Logger.LogWarning("[CHAOS-TEST] Synthetic failure mode active: {FailureMode}", sanitizedMode);
 
 		switch (mode)
 		{
@@ -228,13 +261,13 @@
 				{
 					var delay = LatencyMs is > 0 ? LatencyMs.Value : 3000;
 					transaction.AddCustomAttribute("syntheticLatencyMs", delay);
-					Logger.LogWarning("Synthetic latency: {DelayMs} ms", delay);
+					Logger.LogWarning("[CHAOS-TEST] Synthetic latency: {DelayMs} ms", delay);
 					await Task.Delay(delay);
 					break;
 				}
 
 			case "exception":
-				Logger.LogError("Synthetic exception triggered");
+				Logger.LogError("[CHAOS-TEST] Synthetic exception triggered");
 				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?chaos=exception");
 
 			case "random":
@@ -243,10 +276,10 @@
 					transaction.AddCustomAttribute("syntheticChaosRoll", roll);
 					if (roll < 0.5)
 					{
-						Logger.LogError("Synthetic random failure (roll={Roll:F2})", roll);
+						Logger.LogError("[CHAOS-TEST] Synthetic random failure (roll={Roll:F2})", roll);
 						throw new InvalidOperationException($"Synthetic failure: random mode rolled {roll:F2} (< 0.5) — buzz dropped");
 					}
-					Logger.LogInformation("Synthetic random survived (roll={Roll:F2})", roll);
+					Logger.LogInformation("[CHAOS-TEST] Synthetic random survived (roll={Roll:F2})", roll);
 					break;
 				}
 
@@ -254,7 +287,7 @@
 				{
 					const int timeoutMs = 35_000;
 					transaction.AddCustomAttribute("syntheticTimeoutMs", timeoutMs);
-					Logger.LogWarning("Synthetic timeout: waiting {TimeoutMs} ms", timeoutMs);
+					Logger.LogWarning("[CHAOS-TEST] Synthetic timeout: waiting {TimeoutMs} ms", timeoutMs);
 					using var cts = new CancellationTokenSource(timeoutMs);
 					try
 					{
@@ -268,9 +301,44 @@
 				}
 
 			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
+				Logger.LogWarning("[CHAOS-TEST] Unknown synthetic failure mode '{Mode}' — ignored", sanitizedMode);
 				break;
 		}
+	}
+
+	private bool IsEnvironmentAllowedForChaos(O11yPartyBuzzer.Services.ChaosOptions chaosOptions)
+	{
+		var allowedEnvironments = chaosOptions.AllowedEnvironments;
+		if (allowedEnvironments is null || allowedEnvironments.Count == 0)
+		{
+			return false;
+		}
+
+		return allowedEnvironments.Any(environment =>
+			string.Equals(environment, HostEnvironment.EnvironmentName, StringComparison.OrdinalIgnoreCase));
+	}
+
+	private static string SanitizeForLog(string value)
+	{
+		if (string.IsNullOrEmpty(value))
+		{
+			return string.Empty;
+		}
+
+		var builder = new System.Text.StringBuilder(MaxChaosLogValueLength);
+		foreach (var ch in value)
+		{
+			if (!char.IsControl(ch))
+			{
+				builder.Append(ch);
+				if (builder.Length == MaxChaosLogValueLength)
+				{
+					break;
+				}
+			}
+		}
+
+		return builder.ToString().Trim();
 	}
 
 	private sealed class LeadCaptureForm
