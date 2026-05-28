@@ -1,7 +1,8 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject O11yPartyBuzzer.Services.ChaosEngineeringPolicy ChaosPolicy
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -219,8 +220,41 @@
 
 		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
 		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
+		var evaluation = ChaosPolicy.Evaluate(mode);
+		var logMode = evaluation.Mode switch
+		{
+			"latency" => "latency",
+			"exception" => "exception",
+			"random" => "random",
+			"timeout" => "timeout",
+			_ => "unknown"
+		};
+
+		if (evaluation.IsBlockedInProduction)
+		{
+			transaction.AddCustomAttribute("chaos.mode.blocked", true);
+			Logger.LogWarning("Chaos mode {FailureMode} blocked in production environment.", logMode);
+			return;
+		}
+
+		if (evaluation.IsDisabledByConfiguration)
+		{
+			transaction.AddCustomAttribute("chaos.mode.enabled", false);
+			Logger.LogInformation("Chaos mode {FailureMode} disabled via configuration.", logMode);
+			return;
+		}
+
+		if (!evaluation.ShouldApplyChaos)
+		{
+			transaction.AddCustomAttribute("chaos.mode.enabled", false);
+			Logger.LogWarning("Chaos mode {FailureMode} requested outside an allowed environment.", logMode);
+			return;
+		}
+
+		transaction.AddCustomAttribute("chaos.mode.enabled", true);
+		transaction.AddCustomAttribute("chaos.mode.active", true);
 		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
+		Logger.LogWarning("Synthetic failure mode active: {FailureMode}.", logMode);
 
 		switch (mode)
 		{
