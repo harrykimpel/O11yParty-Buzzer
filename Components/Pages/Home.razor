@@ -1,7 +1,9 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IWebHostEnvironment HostEnvironment
+@inject IConfiguration Configuration
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -97,6 +99,9 @@
 	/// exception – throws an unhandled exception on every buzz
 	/// random – fails ~50 % of buzzes at random
 	/// timeout – simulates a long-running request that eventually times out
+	/// Chaos injection is only honored when:
+	/// 1) environment is NOT Production, and
+	/// 2) Chaos:Enabled is true.
 	/// Use: ?chaos=latency|exception|random|timeout
 	/// </summary>
 	[SupplyParameterFromQuery(Name = "chaos")]
@@ -214,6 +219,18 @@
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
+			return;
+		}
+
+		if (HostEnvironment.IsProduction())
+		{
+			Logger.LogWarning("Ignoring synthetic failure mode '{FailureMode}' in Production environment", mode);
+			return;
+		}
+
+		if (!Configuration.GetValue("Chaos:Enabled", false))
+		{
+			Logger.LogWarning("Ignoring synthetic failure mode '{FailureMode}' because Chaos:Enabled is false", mode);
 			return;
 		}
 
