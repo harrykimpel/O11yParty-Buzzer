@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
 @inject ILogger<Home> Logger
+@inject IConfiguration Configuration
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
@@ -211,6 +212,15 @@
 	[NewRelic.Api.Agent.Transaction]
 	private async Task ApplySyntheticFailureAsync()
 	{
+		if (!Configuration.GetValue<bool>("Chaos:Enabled"))
+		{
+			if (!string.IsNullOrWhiteSpace(FailureMode))
+			{
+				Logger.LogWarning("Chaos mode '{FailureMode}' requested but chaos is disabled in this environment — skipping", FailureMode);
+			}
+			return;
+		}
+
 		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
 		if (string.IsNullOrEmpty(mode))
 		{
