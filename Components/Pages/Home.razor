@@ -1,285 +1,62 @@
-﻿@page "/"
-@rendermode InteractiveServer
-@inject O11yPartyBuzzer.Services.INewRelicEventPublisher EventPublisher
-@inject ILogger<Home> Logger
+@page "/"
 
 <PageTitle>O11yParty-Buzzer</PageTitle>
 
+@*
+    Static server-rendered page. Interactivity (lead gate + buzz) is handled by
+    wwwroot/buzzer.js via fetch() to /api/lead-capture and /api/buzz — there is NO
+    Blazor Server circuit. The DOM ids/classes below are the JS + load-test contract;
+    keep them stable (notably #teamName, button.buzzer-button, p.status.ok/.error,
+    .lead-gate, and the success text "Buzz received for {team}.").
+*@
+
 <section class="buzzer-stage">
-	<main class="buzzer-shell @(isLeadCaptured ? string.Empty : "is-locked")" aria-hidden="@(!isLeadCaptured)">
+	<main class="buzzer-shell is-locked" id="buzzerShell" aria-hidden="true">
 		<p>Enter your team name and hit the buzzer to answer the question.</p>
 
 		<label for="teamName">Team Name</label>
-		<input id="teamName" class="team-input" maxlength="80" @bind="teamName" @bind:event="oninput"
-			   placeholder="Team Rocket" />
+		<input id="teamName" class="team-input" maxlength="80" placeholder="Team Rocket" />
 
-		<button class="buzzer-button" @onclick="BuzzAsync" disabled="@isSubmitting">
-			@(isSubmitting ? "Buzzing..." : "BUZZ")
-		</button>
+		<button class="buzzer-button" id="buzzButton" type="button">BUZZ</button>
 
-		@if (!string.IsNullOrWhiteSpace(statusMessage))
-		{
-			<p class="status @statusCssClass">@statusMessage</p>
-		}
+		<p class="status" id="buzzStatus" role="status" aria-live="polite" hidden></p>
 	</main>
 
-	@if (!isLeadCaptured)
-	{
-		<section class="lead-gate" role="dialog" aria-modal="true" aria-labelledby="leadGateTitle">
-			<div class="lead-gate-card">
-				<h2 id="leadGateTitle">Before You Buzz</h2>
-				<p>Please complete the required details to continue.</p>
+	<section class="lead-gate" id="leadGate" role="dialog" aria-modal="true" aria-labelledby="leadGateTitle">
+		<div class="lead-gate-card">
+			<h2 id="leadGateTitle">Before You Buzz</h2>
+			<p>Please complete the required details to continue.</p>
 
-				<div class="lead-grid">
-					<div class="lead-field">
-						<label for="firstName">First Name</label>
-						<input id="firstName" class="lead-input" required maxlength="100" @bind="leadForm.FirstName"
-							   @bind:event="oninput" />
-					</div>
-					<div class="lead-field">
-						<label for="lastName">Last Name</label>
-						<input id="lastName" class="lead-input" required maxlength="100" @bind="leadForm.LastName"
-							   @bind:event="oninput" />
-					</div>
-					<div class="lead-field lead-field-wide">
-						<label for="businessEmail">Business Email Address</label>
-						<input id="businessEmail" class="lead-input" required type="email" maxlength="180"
-							   @bind="leadForm.BusinessEmailAddress" @bind:event="oninput" />
-					</div>
-					<div class="lead-field">
-						<label for="companyName">Company Name</label>
-						<input id="companyName" class="lead-input" required maxlength="150" @bind="leadForm.CompanyName"
-							   @bind:event="oninput" />
-					</div>
-					<div class="lead-field">
-						<label for="jobTitle">Job Title</label>
-						<input id="jobTitle" class="lead-input" required maxlength="120" @bind="leadForm.JobTitle"
-							   @bind:event="oninput" />
-					</div>
-					<div class="lead-field lead-field-wide">
-						<label for="country">Country</label>
-						<input id="country" class="lead-input" required maxlength="120" @bind="leadForm.Country"
-							   @bind:event="oninput" />
-					</div>
+			<div class="lead-grid">
+				<div class="lead-field">
+					<label for="firstName">First Name</label>
+					<input id="firstName" class="lead-input" required maxlength="100" />
 				</div>
-
-				@if (!string.IsNullOrWhiteSpace(leadFormError))
-				{
-					<p class="lead-error">@leadFormError</p>
-				}
-
-				<button class="lead-submit" type="button" @onclick="SubmitLeadFormAsync"
-						disabled="@isSubmittingLeadCapture">
-					@(isSubmittingLeadCapture ? "Submitting..." : "Continue To Buzzer")
-				</button>
+				<div class="lead-field">
+					<label for="lastName">Last Name</label>
+					<input id="lastName" class="lead-input" required maxlength="100" />
+				</div>
+				<div class="lead-field lead-field-wide">
+					<label for="businessEmail">Business Email Address</label>
+					<input id="businessEmail" class="lead-input" required type="email" maxlength="180" />
+				</div>
+				<div class="lead-field">
+					<label for="companyName">Company Name</label>
+					<input id="companyName" class="lead-input" required maxlength="150" />
+				</div>
+				<div class="lead-field">
+					<label for="jobTitle">Job Title</label>
+					<input id="jobTitle" class="lead-input" required maxlength="120" />
+				</div>
+				<div class="lead-field lead-field-wide">
+					<label for="country">Country</label>
+					<input id="country" class="lead-input" required maxlength="120" />
+				</div>
 			</div>
-		</section>
-	}
+
+			<p class="lead-error" id="leadError" hidden></p>
+
+			<button class="lead-submit" id="leadSubmit" type="button">Continue To Buzzer</button>
+		</div>
+	</section>
 </section>
-
-@code {
-	private static readonly System.Text.RegularExpressions.Regex BusinessEmailRegex = new(
-		@"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$",
-		System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-
-	private string teamName = string.Empty;
-	private string statusMessage = string.Empty;
-	private string statusCssClass = "ok";
-	private bool isSubmitting;
-	private bool isSubmittingLeadCapture;
-	private bool isLeadCaptured;
-	private string leadFormError = string.Empty;
-	private readonly LeadCaptureForm leadForm = new();
-
-	/// <summary>
-	/// Synthetic failure mode. Supported values:
-	/// latency – adds an artificial delay (see latencyMs)
-	/// exception – throws an unhandled exception on every buzz
-	/// random – fails ~50 % of buzzes at random
-	/// timeout – simulates a long-running request that eventually times out
-	/// Use: ?chaos=latency|exception|random|timeout
-	/// </summary>
-	[SupplyParameterFromQuery(Name = "chaos")]
-	public string? FailureMode { get; set; }
-
-	/// <summary>Delay in milliseconds used when failure=latency (default 3000).</summary>
-	[SupplyParameterFromQuery(Name = "latencyMs")]
-	public int? LatencyMs { get; set; }
-
-	[NewRelic.Api.Agent.Transaction]
-	private async Task SubmitLeadFormAsync()
-	{
-		leadFormError = string.Empty;
-
-		if (HasMissingLeadFields())
-		{
-			leadFormError = "All fields are required.";
-			return;
-		}
-
-		leadForm.BusinessEmailAddress = leadForm.BusinessEmailAddress.Trim();
-		if (!BusinessEmailRegex.IsMatch(leadForm.BusinessEmailAddress))
-		{
-			leadFormError = "Enter a valid business email address.";
-			return;
-		}
-
-		leadForm.FirstName = leadForm.FirstName.Trim();
-		leadForm.LastName = leadForm.LastName.Trim();
-		leadForm.CompanyName = leadForm.CompanyName.Trim();
-		leadForm.JobTitle = leadForm.JobTitle.Trim();
-		leadForm.Country = leadForm.Country.Trim();
-
-		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
-		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("FirstName", leadForm.FirstName.Trim())
-			.AddCustomAttribute("LastName", leadForm.LastName.Trim())
-			.AddCustomAttribute("CompanyName", leadForm.CompanyName.Trim())
-			.AddCustomAttribute("JobTitle", leadForm.JobTitle.Trim())
-			.AddCustomAttribute("Country", leadForm.Country.Trim())
-			.AddCustomAttribute("BusinessEmailAddress", leadForm.BusinessEmailAddress.Trim());
-
-		try
-		{
-			isSubmittingLeadCapture = true;
-			await EventPublisher.PublishLeadCaptureAsync(
-				leadForm.FirstName,
-				leadForm.LastName,
-				leadForm.BusinessEmailAddress,
-				leadForm.CompanyName,
-				leadForm.JobTitle,
-				leadForm.Country);
-			isLeadCaptured = true;
-		}
-		catch (Exception ex)
-		{
-			leadFormError = $"Could not submit details: {ex.Message}";
-		}
-		finally
-		{
-			isSubmittingLeadCapture = false;
-		}
-	}
-
-	private bool HasMissingLeadFields()
-	{
-		return string.IsNullOrWhiteSpace(leadForm.FirstName)
-			|| string.IsNullOrWhiteSpace(leadForm.LastName)
-			|| string.IsNullOrWhiteSpace(leadForm.BusinessEmailAddress)
-			|| string.IsNullOrWhiteSpace(leadForm.CompanyName)
-			|| string.IsNullOrWhiteSpace(leadForm.JobTitle)
-			|| string.IsNullOrWhiteSpace(leadForm.Country);
-	}
-
-	[NewRelic.Api.Agent.Transaction]
-	private async Task BuzzAsync()
-	{
-		var normalizedTeamName = teamName.Trim();
-		if (string.IsNullOrWhiteSpace(normalizedTeamName))
-		{
-			statusCssClass = "error";
-			statusMessage = "Enter a team name before buzzing.";
-			return;
-		}
-
-		try
-		{
-			isSubmitting = true;
-			statusMessage = string.Empty;
-
-			await ApplySyntheticFailureAsync();
-
-			await EventPublisher.PublishBuzzAsync(normalizedTeamName);
-			statusCssClass = "ok";
-			statusMessage = $"Buzz received for {normalizedTeamName}.";
-
-			NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
-			NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-			transaction.AddCustomAttribute("TeamName", normalizedTeamName);
-		}
-		catch (Exception ex)
-		{
-			statusCssClass = "error";
-			statusMessage = $"Could not send buzz event: {ex.Message}";
-		}
-		finally
-		{
-			isSubmitting = false;
-		}
-	}
-
-	[NewRelic.Api.Agent.Transaction]
-	private async Task ApplySyntheticFailureAsync()
-	{
-		var mode = (FailureMode ?? string.Empty).Trim().ToLowerInvariant();
-		if (string.IsNullOrEmpty(mode))
-		{
-			return;
-		}
-
-		NewRelic.Api.Agent.IAgent agent = NewRelic.Api.Agent.NewRelic.GetAgent();
-		NewRelic.Api.Agent.ITransaction transaction = agent.CurrentTransaction;
-		transaction.AddCustomAttribute("syntheticFailureMode", mode);
-		Logger.LogWarning("Synthetic failure mode active: {FailureMode}", mode);
-
-		switch (mode)
-		{
-			case "latency":
-				{
-					var delay = LatencyMs is > 0 ? LatencyMs.Value : 3000;
-					transaction.AddCustomAttribute("syntheticLatencyMs", delay);
-					Logger.LogWarning("Synthetic latency: {DelayMs} ms", delay);
-					await Task.Delay(delay);
-					break;
-				}
-
-			case "exception":
-				Logger.LogError("Synthetic exception triggered");
-				throw new InvalidOperationException("Synthetic failure: unhandled exception injected via ?chaos=exception");
-
-			case "random":
-				{
-					var roll = Random.Shared.NextDouble();
-					transaction.AddCustomAttribute("syntheticChaosRoll", roll);
-					if (roll < 0.5)
-					{
-						Logger.LogError("Synthetic random failure (roll={Roll:F2})", roll);
-						throw new InvalidOperationException($"Synthetic failure: random mode rolled {roll:F2} (< 0.5) — buzz dropped");
-					}
-					Logger.LogInformation("Synthetic random survived (roll={Roll:F2})", roll);
-					break;
-				}
-
-			case "timeout":
-				{
-					const int timeoutMs = 35_000;
-					transaction.AddCustomAttribute("syntheticTimeoutMs", timeoutMs);
-					Logger.LogWarning("Synthetic timeout: waiting {TimeoutMs} ms", timeoutMs);
-					using var cts = new CancellationTokenSource(timeoutMs);
-					try
-					{
-						await Task.Delay(Timeout.Infinite, cts.Token);
-					}
-					catch (OperationCanceledException)
-					{
-						throw new TimeoutException("Synthetic failure: request timed out after 35 s (injected via ?chaos=timeout)");
-					}
-					break;
-				}
-
-			default:
-				Logger.LogWarning("Unknown synthetic failure mode '{Mode}' — ignored", mode);
-				break;
-		}
-	}
-
-	private sealed class LeadCaptureForm
-	{
-		public string FirstName { get; set; } = string.Empty;
-		public string LastName { get; set; } = string.Empty;
-		public string BusinessEmailAddress { get; set; } = string.Empty;
-		public string CompanyName { get; set; } = string.Empty;
-		public string JobTitle { get; set; } = string.Empty;
-		public string Country { get; set; } = string.Empty;
-	}
-}
