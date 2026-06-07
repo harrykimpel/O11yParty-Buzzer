@@ -287,6 +287,19 @@ a,
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
 }
 
+/* New Relic emblem, pinned to the right edge of the header, vertically centered. */
+.cosmic-nr-logo {
+    position: absolute;
+    right: 2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    height: clamp(36px, 7vw, 60px);
+    width: auto;
+    z-index: 4;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
+}
+
 h1:focus {
     outline: none;
 }
