@@ -123,7 +123,13 @@ async function buzz() {
       showStatus("error", await readError(res, `Could not send buzz event (${res.status}).`));
       return;
     }
-    showStatus("ok", `Buzz received for ${team}.`);
+    // Local timestamp so the player can validate exactly when their buzz registered.
+    const at = new Date().toLocaleString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    showStatus("ok", `Buzz received for ${team} at ${at}.`);
   } catch (err) {
     showStatus("error", `Could not send buzz event: ${err}`);
   } finally {
