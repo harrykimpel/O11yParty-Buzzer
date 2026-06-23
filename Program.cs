@@ -1,6 +1,10 @@
+using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
@@ -24,10 +28,68 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// Rate limiting — per-IP, using the real client IP resolved by UseForwardedHeaders() above.
+// Policy names are referenced by .RequireRateLimiting() on each endpoint below.
+var rateLimitCfg = builder.Configuration
+    .GetSection(RateLimitingOptions.SectionName)
+    .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
+
+builder.Services.AddRateLimiter(options =>
+{
+    // Return a JSON ApiError body (matching all other error responses) and a Retry-After header.
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                Math.Max(1, (int)retryAfter.TotalSeconds)
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        await context.HttpContext.Response.WriteAsync(
+            JsonSerializer.Serialize(new ApiError("Too many requests. Please wait a moment before trying again.")),
+            cancellationToken);
+    };
+
+    // Sliding-window limiter for lead-capture: prevents boundary bursts at window edges.
+    options.AddPolicy("lead-capture", context =>
+    {
+        var ip = NormalizeIp(context.Connection.RemoteIpAddress);
+        return RateLimitPartition.GetSlidingWindowLimiter(ip, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimitCfg.LeadCapture.PermitLimit,
+            Window = TimeSpan.FromMinutes(rateLimitCfg.LeadCapture.WindowMinutes),
+            SegmentsPerWindow = rateLimitCfg.LeadCapture.SegmentsPerWindow,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0,
+        });
+    });
+
+    // Sliding-window limiter for buzz: allows short bursts while blocking sustained spam.
+    options.AddPolicy("buzz", context =>
+    {
+        var ip = NormalizeIp(context.Connection.RemoteIpAddress);
+        return RateLimitPartition.GetSlidingWindowLimiter(ip, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = rateLimitCfg.Buzz.PermitLimit,
+            Window = TimeSpan.FromSeconds(rateLimitCfg.Buzz.WindowSeconds),
+            SegmentsPerWindow = rateLimitCfg.Buzz.SegmentsPerWindow,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0,
+        });
+    });
+});
+
 var app = builder.Build();
 
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
+
+// Rate limiter must come after UseForwardedHeaders so the real client IP is visible.
+app.UseRateLimiter();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -91,7 +153,7 @@ app.MapPost("/api/lead-capture", async Task<IResult> (
     {
         return Results.Json(new ApiError($"Could not submit details: {ex.Message}"), statusCode: StatusCodes.Status502BadGateway);
     }
-}).DisableAntiforgery();
+}).DisableAntiforgery().RequireRateLimiting("lead-capture");
 
 app.MapPost("/api/buzz", async Task<IResult> (
     BuzzRequest req,
@@ -120,12 +182,21 @@ app.MapPost("/api/buzz", async Task<IResult> (
     {
         return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
     }
-}).DisableAntiforgery();
+}).DisableAntiforgery().RequireRateLimiting("buzz");
 
 app.Run();
 
+// --- Helpers ----------------------------------------------------------------
+
+// Maps IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) to their plain IPv4 form so
+// both representations resolve to the same rate-limit bucket.
+static string NormalizeIp(IPAddress? address)
+{
+    if (address is null) return "unknown";
+    return (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString();
+}
+
 // --- Synthetic failure modes (observability demo) ---------------------------
-// Ported verbatim from the old Home.razor.ApplySyntheticFailureAsync so the
 // New Relic failure-injection demo keeps working: ?chaos=latency|exception|random|timeout
 static async Task ApplySyntheticFailureAsync(
     string? chaos,
