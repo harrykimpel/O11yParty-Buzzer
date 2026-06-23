@@ -32,8 +32,54 @@ horizontally with no session affinity.
 3. `Services/NewRelicEventPublisher` posts the event JSON to the New Relic Insights endpoint
    (US: `insights-collector.newrelic.com`, EU: `insights-collector.eu01.nr-data.net`).
 
-Both endpoints are minimal APIs in `Program.cs` and return `400` for invalid input, or `5xx`
-if the New Relic call fails.
+Both endpoints are minimal APIs in `Program.cs` and return `400` for invalid input, `429` if the
+caller is rate-limited, or `5xx` if the New Relic call fails.
+
+## Rate Limiting
+
+Both API endpoints are protected by **per-IP rate limiting** using ASP.NET Core's built-in
+`Microsoft.AspNetCore.RateLimiting` middleware (no extra NuGet package required). When a limit is
+exceeded the server returns `429 Too Many Requests` with a `Retry-After` header (seconds) and a
+JSON error body `{ "error": "..." }` — matching the same shape as all other error responses so the
+client JS handles it uniformly.
+
+| Endpoint | Strategy | Default limit |
+|---|---|---|
+| `POST /api/lead-capture` | Sliding window, per IP | 5 requests / 10 minutes |
+| `POST /api/buzz` | Sliding window, per IP | 10 requests / 60 seconds |
+
+Limits are configurable via `appsettings.json` (or environment variables):
+
+```json
+"RateLimiting": {
+  "LeadCapture": {
+    "PermitLimit": 5,
+    "WindowMinutes": 10,
+    "SegmentsPerWindow": 5
+  },
+  "Buzz": {
+    "PermitLimit": 10,
+    "WindowSeconds": 60,
+    "SegmentsPerWindow": 6
+  }
+}
+```
+
+Override any value with an environment variable using the double-underscore convention, e.g.:
+
+```
+RateLimiting__Buzz__PermitLimit=20
+RateLimiting__Buzz__WindowSeconds=30
+```
+
+The real client IP is resolved from `X-Forwarded-For` (via `UseForwardedHeaders()`, which runs
+before the rate-limiter) so limits are per-attendee, not per-proxy. IPv4-mapped IPv6 addresses
+are normalised to plain IPv4 so both representations share the same bucket.
+
+> **Note — per-instance counters:** Rate-limit state is held in-process. On horizontally scaled
+> deployments (AWS App Runner, ECS) each instance tracks its own counters independently — a client
+> could hit multiple instances and exceed the intended global limit. For strict enforcement at
+> scale, add an upstream layer such as AWS WAF or an API Gateway throttle rule.
 
 ## Configure New Relic
 

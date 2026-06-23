@@ -78,6 +78,12 @@ async function submitLead() {
         country: values.country,
       }),
     });
+    if (res.status === 429) {
+      const retryAfter = res.headers.get("Retry-After");
+      const wait = retryAfter ? ` Please wait ${retryAfter} seconds.` : " Please wait before trying again.";
+      showLeadError(`Too many submission attempts.${wait}`);
+      return;
+    }
     if (!res.ok) {
       showLeadError(await readError(res, `Could not submit details (${res.status}).`));
       return;
@@ -119,6 +125,12 @@ async function buzz() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ teamName: team }),
     });
+    if (res.status === 429) {
+      const retryAfter = res.headers.get("Retry-After");
+      const wait = retryAfter ? ` Try again in ${retryAfter} seconds.` : " Please slow down and try again shortly.";
+      showStatus("error", `Too many buzz attempts from your device.${wait}`);
+      return;
+    }
     if (!res.ok) {
       showStatus("error", await readError(res, `Could not send buzz event (${res.status}).`));
       return;
