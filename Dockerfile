@@ -24,14 +24,19 @@ ENV NewRelic__IngestApiKey=
 # Enable the agent
 ENV NEW_RELIC_LICENSE_KEY=
 
+# CORECLR_PROFILER_PATH is set at container startup by docker-entrypoint.sh
+# based on the detected CPU architecture (x86_64 → linux-x64, aarch64 → linux-arm64),
+# so the same image runs on both arm64 and amd64 hosts.
 ENV CORECLR_ENABLE_PROFILING=1 \
 CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A} \
 CORECLR_NEWRELIC_HOME=/app/newrelic \
-CORECLR_PROFILER_PATH=/app/newrelic/linux-arm64/libNewRelicProfiler.so \
 NEW_RELIC_APP_NAME="O11yParty-Buzzer" \
 NEW_RELIC_LOG_LEVEL=info
 
 EXPOSE 8080
 
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "O11yPartyBuzzer.dll"]
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -20,16 +20,30 @@ No test projects exist in this solution.
 
 ## Architecture
 
-**O11yParty-Buzzer** is a stateless ASP.NET Core 10.0 Blazor Web application for interactive event engagement. Attendees enter a team name and "buzz in"; the event is sent to New Relic Custom Events API.
+**O11yParty-Buzzer** is a **stateless, statically-rendered** ASP.NET Core 10.0 app for interactive
+event engagement. Attendees enter a team name and "buzz in"; the event is sent to the New Relic
+Custom Events API. It is intentionally **not** Blazor Server — see the note below.
 
 ### Request flow
 
-1. `Pages/Home.razor` — single page UI with a lead-capture gate (must fill out first/last name, business email, company, job title, country before buzzing). Once captured, the buzzer becomes active.
-2. On buzz, `BuzzAsync()` calls `INewRelicEventPublisher.PublishBuzzAsync(teamName)`.
-3. `Services/NewRelicEventPublisher` posts JSON to the New Relic Insights Collector endpoint:
+1. `Components/Pages/Home.razor` — single **static SSR** page (no `@rendermode`, no `/_blazor`
+   circuit) with a lead-capture gate (first/last name, business email, company, job title,
+   country) over a locked buzzer. `wwwroot/buzzer.js` drives interactivity via `fetch()`.
+2. Lead gate submit → `POST /api/lead-capture` → `INewRelicEventPublisher.PublishLeadCaptureAsync`.
+   On 200 the JS unlocks the buzzer.
+3. Buzz → `POST /api/buzz` (forwards `?chaos=`/`latencyMs=`) → runs the synthetic-failure modes,
+   then `PublishBuzzAsync(teamName)`. Both endpoints are minimal APIs in `Program.cs`.
+4. `Services/NewRelicEventPublisher` posts JSON to the New Relic Insights Collector endpoint:
    - US: `https://insights-collector.newrelic.com/v1/accounts/{accountId}/events`
    - EU: `https://insights-collector.eu01.nr-data.net/v1/accounts/{accountId}/events`
-4. Lead capture data is similarly posted via `PublishLeadCaptureAsync(...)` when the gate form is submitted.
+
+> **Why stateless, not Blazor Server:** the buzzer originally used an interactive Blazor Server
+> circuit (`/_blazor`). Under crowd load on AWS App Runner that saturated the single instance
+> (HTTP 429 at the concurrency cap) and dropped circuits (HTTP 404 "No Connection with that ID"),
+> so attendees couldn't buzz. A per-user server circuit has no good operating point on App Runner
+> (no session affinity; autoscaling keyed on request concurrency that long-polling keeps low).
+> The buzz is a one-shot action, so it's now a plain stateless POST. Reproduction/verification
+> lives in `../concurrency-tests/`.
 
 ### Configuration
 
@@ -57,7 +71,8 @@ The app is deployed behind a reverse proxy (AWS App Runner); `Program.cs` config
 
 ### Frontend
 
-- Blazor Interactive Server rendering (`InteractiveServerRenderMode`)
+- **Static server rendering** (Razor Components without interactive render modes) + vanilla JS
+  (`wwwroot/buzzer.js`) calling the JSON API. No SignalR circuit, no `blazor.web.js`.
 - Dark/light theme toggle via `wwwroot/theme.js` — persists preference to `localStorage`
 - Bootstrap for layout; scoped CSS per component (`.razor.css` files)
 - No JavaScript bundler — static files served directly from `wwwroot/`
