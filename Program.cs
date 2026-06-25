@@ -98,7 +98,9 @@ app.MapPost("/api/buzz", async Task<IResult> (
     [FromQuery] string? chaos,
     [FromQuery] int? latencyMs,
     INewRelicEventPublisher publisher,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IWebHostEnvironment env,
+    IConfiguration configuration) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
     var teamName = req.TeamName?.Trim() ?? string.Empty;
@@ -111,7 +113,7 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     try
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger, env, configuration);
         transaction.AddCustomAttribute("TeamName", teamName);
         await publisher.PublishBuzzAsync(teamName);
         return Results.Ok(new BuzzResponse($"Buzz received for {teamName}."));
@@ -131,11 +133,20 @@ static async Task ApplySyntheticFailureAsync(
     string? chaos,
     int? latencyMs,
     NewRelic.Api.Agent.ITransaction transaction,
-    ILogger logger)
+    ILogger logger,
+    IWebHostEnvironment env,
+    IConfiguration configuration)
 {
     var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant();
     if (string.IsNullOrEmpty(mode))
     {
+        return;
+    }
+
+    var chaosEnabled = env.IsDevelopment() && configuration.GetValue<bool>("Chaos:Enabled");
+    if (!chaosEnabled)
+    {
+        logger.LogWarning("Chaos mode '{Mode}' requested but is disabled outside of development environments", mode);
         return;
     }
 
