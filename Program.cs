@@ -115,11 +115,17 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     NewRelic.Api.Agent.ITransaction transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
 
-    await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+    try
+    {
+        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
+    }
     transaction.AddCustomAttribute("TeamName", teamName);
 
     var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
     // Critical path: real-time delivery via SignalR
     try
     {
