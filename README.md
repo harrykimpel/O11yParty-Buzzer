@@ -29,11 +29,30 @@ horizontally with no session affinity.
 2. `wwwroot/buzzer.js` validates input and calls the JSON API via `fetch()`:
    - `POST /api/lead-capture` — submits the lead fields; on success the buzzer unlocks.
    - `POST /api/buzz` — `{ "teamName": "…" }`; on success shows "Buzz received for …".
-3. `Services/NewRelicEventPublisher` posts the event JSON to the New Relic Insights endpoint
-   (US: `insights-collector.newrelic.com`, EU: `insights-collector.eu01.nr-data.net`).
+3. `Services/BuzzHubClient` pushes the buzz over SignalR to the game app's `BuzzHub` — this is
+   the critical path; if it fails the request fails and the attendee sees an error.
+4. `Services/NewRelicEventPublisher` posts the event JSON to the New Relic Insights endpoint
+   (US: `insights-collector.newrelic.com`, EU: `insights-collector.eu01.nr-data.net`) —
+   fire-and-forget, for dashboards only. A failure here never fails the buzz.
 
 Both endpoints are minimal APIs in `Program.cs` and return `400` for invalid input, or `5xx`
 if the New Relic call fails.
+
+## Configure the game hub connection (SignalR)
+
+`Services/BuzzHubClient` is a singleton hosted service that opens one SignalR connection to the
+game app's `BuzzHub` (`/hubs/buzz`) at startup and reuses it for every buzz. Set these before
+running:
+
+- `BuzzHub__Url` — full URL to the game app's hub endpoint, e.g.
+  `https://<game-app-public-hostname>/hubs/buzz`. Use `https://` (SignalR negotiates the
+  WebSocket upgrade itself); this is the same public origin a browser uses to load the game,
+  not an internal/private address. Left blank, `BuzzHubClient` stays idle (dev/local mode) and
+  `POST /api/buzz` fails every request with a 502.
+- `BuzzHub__SharedSecret` — token sent as the SignalR access token; must match the game app's
+  `BuzzHub__SharedSecret` exactly, or the game rejects the connection.
+
+Set them as environment variables, user-secrets, or directly in `appsettings.json`.
 
 ## Configure New Relic
 
