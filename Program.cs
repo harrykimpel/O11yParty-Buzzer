@@ -16,6 +16,11 @@ builder.Services.AddRazorComponents();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
 
+// SignalR hub client — singleton owned connection to the game hub
+builder.Services.Configure<BuzzHubOptions>(builder.Configuration.GetSection(BuzzHubOptions.SectionName));
+builder.Services.AddSingleton<BuzzHubClient>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BuzzHubClient>());
+
 // Trust forwarded headers from App Runner's reverse proxy
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -97,7 +102,8 @@ app.MapPost("/api/buzz", async Task<IResult> (
     BuzzRequest req,
     [FromQuery] string? chaos,
     [FromQuery] int? latencyMs,
-    INewRelicEventPublisher publisher,
+    BuzzHubClient buzzHubClient,
+    IServiceScopeFactory scopeFactory,
     ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
@@ -112,14 +118,44 @@ app.MapPost("/api/buzz", async Task<IResult> (
     try
     {
         await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
-        transaction.AddCustomAttribute("TeamName", teamName);
-        await publisher.PublishBuzzAsync(teamName);
-        return Results.Ok(new BuzzResponse($"Buzz received for {teamName}."));
     }
     catch (Exception ex)
     {
         return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
     }
+    transaction.AddCustomAttribute("TeamName", teamName);
+
+    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    // Critical path: real-time delivery via SignalR
+    try
+    {
+        await buzzHubClient.SendBuzzAsync(teamName, ts);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "SignalR SendBuzzAsync failed for team {TeamName}", teamName);
+        return Results.Json(new ApiError("Buzzer is temporarily offline, try again."), statusCode: StatusCodes.Status502BadGateway);
+    }
+
+    // Fire-and-forget: publish to New Relic for dashboards only — failure must never fail the request.
+    // INewRelicEventPublisher is registered via AddHttpClient (transient/scoped), so we must not
+    // capture the request-scoped instance in a detached task. Instead create a fresh DI scope.
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var nrPublisher = scope.ServiceProvider.GetRequiredService<INewRelicEventPublisher>();
+            await nrPublisher.PublishBuzzAsync(teamName);
+        }
+        catch (Exception ex)
+        {
+            var bgLogger = loggerFactory.CreateLogger("BuzzApi.NewRelicPublish");
+            bgLogger.LogWarning(ex, "Fire-and-forget New Relic publish failed for team {TeamName} — buzz already delivered via SignalR.", teamName);
+        }
+    });
+
+    return Results.Ok(new BuzzResponse($"Buzz received for {teamName}."));
 }).DisableAntiforgery();
 
 app.Run();

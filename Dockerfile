@@ -21,6 +21,11 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 ENV NewRelic__AccountId=
 ENV NewRelic__IngestApiKey=
 
+# Buzz hub (SignalR) — game hub URL + shared secret (must match the game). Inject at runtime.
+# BuzzHub__Url example: https://<game-host>/hubs/buzz
+ENV BuzzHub__Url=
+ENV BuzzHub__SharedSecret=
+
 # Enable the agent
 ENV NEW_RELIC_LICENSE_KEY=
 
