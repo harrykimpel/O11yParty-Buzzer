@@ -1,4 +1,9 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Run the SDK natively on the build host's arch ($BUILDPLATFORM) so MSBuild is never emulated
+# under QEMU — cross-arch emulation crashes MSBuild property-function evaluation (e.g.
+# "[MSBuild]::GetTargetFrameworkVersion(net6.0) cannot be evaluated" during restore). This is a
+# framework-dependent app launched via `dotnet O11yPartyBuzzer.dll`, so the published output is
+# portable IL and runs fine on the amd64 runtime image below regardless of build host arch.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY O11yPartyBuzzer.csproj ./
@@ -8,7 +13,10 @@ COPY . ./
 RUN dotnet publish O11yPartyBuzzer.csproj -c Release -o /app/publish
 COPY newrelic.config /app/publish/newrelic/newrelic.config
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# Pinned to amd64 regardless of build host — standard ECS Fargate/App Runner run x86_64, so an
+# unpinned FROM here would silently produce an arm64 image on an Apple Silicon build host and
+# fail at container startup with "exec format error".
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Listen on a single container port by default.
