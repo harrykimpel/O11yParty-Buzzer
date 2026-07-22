@@ -119,6 +119,10 @@ app.MapPost("/api/buzz", async Task<IResult> (
     {
         await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
     }
+    catch (NewRelicConfigurationException)
+    {
+        return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
     catch (Exception ex)
     {
         return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
