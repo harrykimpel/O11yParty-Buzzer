@@ -116,6 +116,10 @@ app.MapPost("/api/buzz", async Task<IResult> (
         await publisher.PublishBuzzAsync(teamName);
         return Results.Ok(new BuzzResponse($"Buzz received for {teamName}."));
     }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("not configured", StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
     catch (Exception ex)
     {
         return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
