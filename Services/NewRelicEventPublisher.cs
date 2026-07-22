@@ -104,12 +104,12 @@ public sealed class NewRelicEventPublisher(
     {
         if (string.IsNullOrWhiteSpace(_options.IngestApiKey))
         {
-            throw new InvalidOperationException("New Relic IngestApiKey is not configured.");
+            throw new NewRelicConfigurationException("New Relic IngestApiKey is not configured.");
         }
 
         if (string.IsNullOrWhiteSpace(_options.AccountId))
         {
-            throw new InvalidOperationException("New Relic AccountId is not configured.");
+            throw new NewRelicConfigurationException("New Relic AccountId is not configured.");
         }
     }
 
@@ -125,3 +125,5 @@ public sealed class NewRelicEventPublisher(
         return $"https://{host}/v1/accounts/{accountId}/events";
     }
 }
+
+internal sealed class NewRelicConfigurationException(string message) : InvalidOperationException(message);

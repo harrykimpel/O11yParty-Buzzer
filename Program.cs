@@ -116,7 +116,7 @@ app.MapPost("/api/buzz", async Task<IResult> (
         await publisher.PublishBuzzAsync(teamName);
         return Results.Ok(new BuzzResponse($"Buzz received for {teamName}."));
     }
-    catch (InvalidOperationException ex) when (ex.Message.Contains("not configured", StringComparison.OrdinalIgnoreCase))
+    catch (NewRelicConfigurationException)
     {
         return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
     }
