@@ -34,10 +34,15 @@ below. Full detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 2. Lead gate submit → `POST /api/lead-capture` → `INewRelicEventPublisher.PublishLeadCaptureAsync`.
    On 200 the JS unlocks the buzzer.
 3. Buzz → `POST /api/buzz` (forwards `?chaos=`/`latencyMs=`) → runs the synthetic-failure modes,
-   then two things happen, in order:
+   then two things happen, in order. Client-side, `wwwroot/buzzer.js` shows "Still trying to reach
+   the buzzer — hang tight…" if the response is still pending after 2s (does not abort the
+   request — see "Known limits" below for why a slow buzz is likely still succeeding).
    - **Critical path**: `BuzzHubClient.SendBuzzAsync` pushes the buzz over the app's one
      long-lived SignalR connection to the game's `BuzzHub` (`/hubs/buzz`). If this throws, the
-     request fails with 502 ("Buzzer is temporarily offline") — nothing else runs.
+     request fails with 502 ("Buzzer is temporarily offline") — nothing else runs. The method
+     carries `[NewRelic.Api.Agent.Trace]` (its own APM span) and times itself into a
+     `Custom/BuzzHub/SendBuzzAsync` response-time metric, so this hop's latency is visible in New
+     Relic, not just in load tests.
    - **Fire-and-forget**: `INewRelicEventPublisher.PublishBuzzAsync` logs the buzz to New Relic
      for dashboards, in a fresh DI scope on a detached `Task.Run`. A failure here is only logged
      — the buzz was already delivered via SignalR.
@@ -53,6 +58,15 @@ below. Full detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 > (no session affinity; autoscaling keyed on request concurrency that long-polling keeps low).
 > The buzz is a one-shot action, so it's now a plain stateless POST. Reproduction/verification
 > lives in `../concurrency-tests/`.
+>
+> **Known limits (2026-07-23):** `BuzzHubClient` holds exactly one long-lived SignalR connection
+> to the game, so every concurrent `/api/buzz` request serializes through it. Direct HTTP load
+> testing (`../concurrency-tests/`, `buzzer:http-load` — bypasses the browser, which hits *local
+> machine* limits around 500-600 concurrent Chromium contexts long before the server strains)
+> found this degrades ~linearly at ~300ms/buzz: clean at 5 concurrent (~823ms), ~7.6s at 25
+> concurrent, timeouts starting past ~50 truly-simultaneous buzzes. Not a real-event risk (a
+> handful of teams buzzing within the same second is fine); only matters for a much larger
+> simultaneous-buzz scenario. No collateral damage otherwise — no dropped circuits, no 500s.
 
 ### Configuration
 
@@ -76,6 +90,16 @@ the critical path:
 | `LeadCaptureEventType` | `"O11yPartyLeadCapture"` | Custom event type for lead data |
 
 Set `IngestApiKey` and `AccountId` before running — they are blank in the committed `appsettings.json`.
+
+> **Why raw HTTP ingest, not `RecordCustomEvent` (2026-07-23):** considered switching
+> `NewRelicEventPublisher` to the .NET agent API's `RecordCustomEvent` instead of posting JSON to
+> the Insights Collector. Decided against it: `RecordCustomEvent` silently no-ops if the
+> profiler-based APM agent isn't attached (no exception, no return value), and
+> `PublishLeadCaptureAsync` is on lead-capture's critical path with eager, fail-loud validation
+> today (`ValidateNewRelicConfiguration` → a clear 502) — switching would let a misconfigured or
+> agent-not-attached deployment report success while silently recording nothing. The agent's
+> ~60s harvest-cycle batching is also worse for a live demo than today's immediate POST. Full
+> rationale in `README.md`'s "Why raw HTTP ingest, not `RecordCustomEvent`".
 
 ### Docker / New Relic APM
 

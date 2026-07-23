@@ -10,6 +10,12 @@
 // Mirror of the server-side business-email regex in Program.cs.
 const BUSINESS_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+// If a buzz hasn't resolved by this point, tell the player rather than leave them
+// staring at a silent spinner -- the request is very likely still in flight, not
+// dead (see concurrency-tests' buzzer:http-load findings on shared-connection
+// queueing under heavy concurrent buzzing), so we don't abort it.
+const STILL_TRYING_DELAY_MS = 2000;
+
 const LEAD_FIELD_IDS = [
   "firstName",
   "lastName",
@@ -112,6 +118,9 @@ async function buzz() {
   const button = $("buzzButton");
   button.disabled = true;
   button.textContent = "Buzzing...";
+  const stillTryingTimer = setTimeout(() => {
+    showStatus("pending", "Still trying to reach the buzzer — hang tight…");
+  }, STILL_TRYING_DELAY_MS);
   try {
     // Forward ?chaos=/latencyMs= so the observability failure-injection demo works.
     const res = await fetch(`/api/buzz${location.search}`, {
@@ -133,6 +142,7 @@ async function buzz() {
   } catch (err) {
     showStatus("error", `Could not send buzz event: ${err}`);
   } finally {
+    clearTimeout(stillTryingTimer);
     button.disabled = false;
     button.textContent = "BUZZ";
   }

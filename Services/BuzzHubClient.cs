@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Options;
 
@@ -64,6 +65,10 @@ public sealed class BuzzHubClient : IHostedService, IAsyncDisposable
         }
     }
 
+    // [Trace] gives this call its own segment/span in the APM distributed trace, so
+    // "how long did the critical-path SignalR hop take" is visible per-request, not
+    // just inferred from the overall /api/buzz transaction time.
+    [NewRelic.Api.Agent.Trace]
     public async Task SendBuzzAsync(string teamName, long buzzedAtUtcMs, CancellationToken ct = default)
     {
         if (_connection is null)
@@ -71,25 +76,38 @@ public sealed class BuzzHubClient : IHostedService, IAsyncDisposable
             throw new InvalidOperationException("BuzzHubClient is not configured (BuzzHub:Url is blank).");
         }
 
-        if (_connection.State != HubConnectionState.Connected)
+        // The buzzer holds exactly one shared connection to the game's hub, so every
+        // concurrent buzz serializes through this call -- under enough simultaneous
+        // buzzes it queues (measured: ~300ms/buzz, degrading past ~25-40 concurrent).
+        // This custom metric makes that queueing visible in NR dashboards/alerts
+        // instead of only showing up as a load-test finding.
+        var stopwatch = Stopwatch.StartNew();
+        try
         {
-            await _startLock.WaitAsync(ct);
-            try
+            if (_connection.State != HubConnectionState.Connected)
             {
-                // Re-check inside the lock to avoid a double-start race.
-                if (_connection.State != HubConnectionState.Connected)
+                await _startLock.WaitAsync(ct);
+                try
                 {
-                    _logger.LogInformation("BuzzHubClient is not connected (state={State}); attempting to start.", _connection.State);
-                    await _connection.StartAsync(ct);
+                    // Re-check inside the lock to avoid a double-start race.
+                    if (_connection.State != HubConnectionState.Connected)
+                    {
+                        _logger.LogInformation("BuzzHubClient is not connected (state={State}); attempting to start.", _connection.State);
+                        await _connection.StartAsync(ct);
+                    }
+                }
+                finally
+                {
+                    _startLock.Release();
                 }
             }
-            finally
-            {
-                _startLock.Release();
-            }
-        }
 
-        await _connection.InvokeAsync("Buzz", teamName, buzzedAtUtcMs, ct);
+            await _connection.InvokeAsync("Buzz", teamName, buzzedAtUtcMs, ct);
+        }
+        finally
+        {
+            NewRelic.Api.Agent.NewRelic.RecordResponseTimeMetric("Custom/BuzzHub/SendBuzzAsync", stopwatch.ElapsedMilliseconds);
+        }
     }
 
     public async ValueTask DisposeAsync()

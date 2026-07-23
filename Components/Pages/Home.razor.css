@@ -97,6 +97,10 @@
     color: var(--nr-danger);
 }
 
+.status.pending {
+    color: var(--nr-ink-soft);
+}
+
 .lead-gate {
     position: absolute;
     top: 0;
