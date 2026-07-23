@@ -21,8 +21,10 @@ No test projects exist in this solution.
 ## Architecture
 
 **O11yParty-Buzzer** is a **stateless, statically-rendered** ASP.NET Core 10.0 app for interactive
-event engagement. Attendees enter a team name and "buzz in"; the event is sent to the New Relic
-Custom Events API. It is intentionally **not** Blazor Server — see the note below.
+event engagement. Attendees enter a team name and "buzz in"; the buzz is delivered to the
+companion [O11yParty](https://github.com/harrykimpel/O11yParty) game over SignalR, and separately
+logged to New Relic for dashboards. It is intentionally **not** Blazor Server — see the note
+below. Full detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Request flow
 
@@ -32,7 +34,14 @@ Custom Events API. It is intentionally **not** Blazor Server — see the note be
 2. Lead gate submit → `POST /api/lead-capture` → `INewRelicEventPublisher.PublishLeadCaptureAsync`.
    On 200 the JS unlocks the buzzer.
 3. Buzz → `POST /api/buzz` (forwards `?chaos=`/`latencyMs=`) → runs the synthetic-failure modes,
-   then `PublishBuzzAsync(teamName)`. Both endpoints are minimal APIs in `Program.cs`.
+   then two things happen, in order:
+   - **Critical path**: `BuzzHubClient.SendBuzzAsync` pushes the buzz over the app's one
+     long-lived SignalR connection to the game's `BuzzHub` (`/hubs/buzz`). If this throws, the
+     request fails with 502 ("Buzzer is temporarily offline") — nothing else runs.
+   - **Fire-and-forget**: `INewRelicEventPublisher.PublishBuzzAsync` logs the buzz to New Relic
+     for dashboards, in a fresh DI scope on a detached `Task.Run`. A failure here is only logged
+     — the buzz was already delivered via SignalR.
+   Both endpoints are minimal APIs in `Program.cs`.
 4. `Services/NewRelicEventPublisher` posts JSON to the New Relic Insights Collector endpoint:
    - US: `https://insights-collector.newrelic.com/v1/accounts/{accountId}/events`
    - EU: `https://insights-collector.eu01.nr-data.net/v1/accounts/{accountId}/events`
@@ -47,10 +56,19 @@ Custom Events API. It is intentionally **not** Blazor Server — see the note be
 
 ### Configuration
 
-`NewRelicOptions` (bound from `appsettings.json` → `"NewRelic"` section):
+`BuzzHubOptions` (bound from `appsettings.json` → `"BuzzHub"` section) — the critical-path
+SignalR connection to the game:
+
+| Key | Notes |
+| ----- | ------- |
+| `Url` | Full URL to the game's hub, e.g. `https://<game-host>/hubs/buzz`. Blank → `BuzzHubClient` stays idle (dev/local) and every buzz fails with 502. |
+| `SharedSecret` | Sent as the SignalR access token; must match the game's `BuzzHub:SharedSecret` exactly. |
+
+`NewRelicOptions` (bound from `appsettings.json` → `"NewRelic"` section) — dashboards only, not on
+the critical path:
 
 | Key | Default | Notes |
-|-----|---------|-------|
+| ----- | --------- | ------- |
 | `IngestApiKey` | _(required)_ | New Relic Ingest/License key |
 | `AccountId` | _(required)_ | New Relic Account ID |
 | `Region` | `"US"` | `"US"` or `"EU"` selects the ingest endpoint |
@@ -61,13 +79,24 @@ Set `IngestApiKey` and `AccountId` before running — they are blank in the comm
 
 ### Docker / New Relic APM
 
-The `Dockerfile` is a multi-stage build that:
-1. Publishes the app with `dotnet publish -c Release`
-2. Copies `newrelic.config` into `/app/publish/newrelic/` and enables the CLR profiler via environment variables
+The `Dockerfile` is a multi-stage build:
+
+1. Build stage pinned `--platform=$BUILDPLATFORM` — the SDK always runs natively on the build
+   host's architecture. Cross-arch emulation (QEMU) crashes MSBuild's property-function
+   evaluation during restore; since the published output is portable IL, this doesn't affect the
+   runtime image's architecture.
+2. Runtime stage pinned `--platform=linux/amd64`, independent of the build host — AWS App
+   Runner/ECS Fargate run standard x86_64, so an unpinned `FROM` here would silently produce an
+   arm64 image on an Apple Silicon build host and fail at container startup with
+   `exec format error`.
+3. Copies `newrelic.config` into `/app/publish/newrelic/` and enables the CLR profiler via
+   environment variables. `docker-entrypoint.sh` detects the container's CPU architecture
+   (`x86_64` vs `aarch64`) at startup and points `CORECLR_PROFILER_PATH` at the matching profiler
+   binary, so the same image works on either architecture.
 
 The `newrelic.config` (untracked) is required for Docker deployments with the APM agent. Distributed tracing is enabled; error collection ignores 401/404.
 
-The app is deployed behind a reverse proxy (AWS App Runner); `Program.cs` configures forwarded headers (`X-Forwarded-For`, `X-Forwarded-Proto`) accordingly.
+The app is deployed behind a reverse proxy (AWS App Runner/ECS); `Program.cs` configures forwarded headers (`X-Forwarded-For`, `X-Forwarded-Proto`) accordingly.
 
 ### Frontend
 
