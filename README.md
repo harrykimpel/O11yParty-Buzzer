@@ -41,8 +41,7 @@ horizontally with no session affinity.
    (US: `insights-collector.newrelic.com`, EU: `insights-collector.eu01.nr-data.net`) —
    fire-and-forget, for dashboards only. A failure here never fails the buzz.
 
-Both endpoints are minimal APIs in `Program.cs` and return `400` for invalid input, or `5xx`
-if the New Relic call fails.
+Both endpoints are minimal APIs in `Program.cs` and return `400` for invalid input, or `5xx` if the critical downstream call fails (SignalR for `POST /api/buzz`, New Relic for `POST /api/lead-capture`).
 
 ### Known limits (2026-07-23 load testing)
 
