@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
@@ -15,6 +16,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
+
+// Chaos/synthetic failure modes — disabled by default; enable only in non-production environments
+builder.Services.Configure<ChaosOptions>(builder.Configuration.GetSection(ChaosOptions.SectionName));
 
 // SignalR hub client — singleton owned connection to the game hub
 builder.Services.Configure<BuzzHubOptions>(builder.Configuration.GetSection(BuzzHubOptions.SectionName));
@@ -104,7 +108,8 @@ app.MapPost("/api/buzz", async Task<IResult> (
     [FromQuery] int? latencyMs,
     BuzzHubClient buzzHubClient,
     IServiceScopeFactory scopeFactory,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IOptions<ChaosOptions> chaosOptions) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
     var teamName = req.TeamName?.Trim() ?? string.Empty;
@@ -117,7 +122,7 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     try
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger, chaosOptions.Value.Enabled);
     }
     catch (NewRelicConfigurationException)
     {
@@ -167,15 +172,27 @@ app.Run();
 // --- Synthetic failure modes (observability demo) ---------------------------
 // Ported verbatim from the old Home.razor.ApplySyntheticFailureAsync so the
 // New Relic failure-injection demo keeps working: ?chaos=latency|exception|random|timeout
+// Guard: only active when Chaos:Enabled is true (set in appsettings.Development.json
+// or a staging-specific override). Defaults to false so production is always safe.
 static async Task ApplySyntheticFailureAsync(
     string? chaos,
     int? latencyMs,
     NewRelic.Api.Agent.ITransaction transaction,
-    ILogger logger)
+    ILogger logger,
+    bool chaosEnabled)
 {
     var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant();
     if (string.IsNullOrEmpty(mode))
     {
+        return;
+    }
+
+    if (!chaosEnabled)
+    {
+        logger.LogWarning(
+            "Synthetic failure mode '{FailureMode}' requested via ?chaos= but Chaos:Enabled is false — request blocked. " +
+            "Set Chaos:Enabled=true in a non-production environment to use chaos modes.",
+            mode);
         return;
     }
 
