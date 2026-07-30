@@ -104,7 +104,8 @@ app.MapPost("/api/buzz", async Task<IResult> (
     [FromQuery] int? latencyMs,
     BuzzHubClient buzzHubClient,
     IServiceScopeFactory scopeFactory,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IWebHostEnvironment env) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
     var teamName = req.TeamName?.Trim() ?? string.Empty;
@@ -117,7 +118,7 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     try
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger, env.IsProduction());
     }
     catch (NewRelicConfigurationException)
     {
@@ -167,15 +168,27 @@ app.Run();
 // --- Synthetic failure modes (observability demo) ---------------------------
 // Ported verbatim from the old Home.razor.ApplySyntheticFailureAsync so the
 // New Relic failure-injection demo keeps working: ?chaos=latency|exception|random|timeout
+// NOTE: guarded so that chaos injection is silently blocked in Production.
 static async Task ApplySyntheticFailureAsync(
     string? chaos,
     int? latencyMs,
     NewRelic.Api.Agent.ITransaction transaction,
-    ILogger logger)
+    ILogger logger,
+    bool isProduction)
 {
-    var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant();
+    // Sanitize user-supplied value: strip control characters before any use (logging, attributes, switch)
+    var mode = Regex.Replace((chaos ?? string.Empty).Trim().ToLowerInvariant(), @"[\r\n\t\x00-\x1f\x7f]", string.Empty);
     if (string.IsNullOrEmpty(mode))
     {
+        return;
+    }
+
+    if (isProduction)
+    {
+        logger.LogCritical(
+            "Synthetic failure injection blocked in Production environment (requested mode: {FailureMode}). " +
+            "Chaos engineering is not permitted in Production.",
+            mode);
         return;
     }
 
