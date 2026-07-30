@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Registry;
 
 namespace O11yPartyBuzzer.Services;
 
@@ -10,11 +12,23 @@ public sealed class BuzzHubClient : IHostedService, IAsyncDisposable
     private readonly ILogger<BuzzHubClient> _logger;
     private readonly HubConnection? _connection;
     private readonly SemaphoreSlim _startLock = new(1, 1);
+    private readonly ResiliencePipeline _pipeline;
 
-    public BuzzHubClient(IOptions<BuzzHubOptions> options, ILogger<BuzzHubClient> logger)
+    /// <summary>
+    /// The current state of the SignalR connection to the game hub.
+    /// <c>Disconnected</c> is returned when the hub URL is not configured.
+    /// </summary>
+    public HubConnectionState ConnectionState =>
+        _connection?.State ?? HubConnectionState.Disconnected;
+
+    public BuzzHubClient(
+        IOptions<BuzzHubOptions> options,
+        ILogger<BuzzHubClient> logger,
+        ResiliencePipelineProvider<string> pipelineProvider)
     {
         _options = options.Value;
         _logger = logger;
+        _pipeline = pipelineProvider.GetPipeline("buzz-hub");
 
         if (string.IsNullOrWhiteSpace(_options.Url))
         {
@@ -84,25 +98,32 @@ public sealed class BuzzHubClient : IHostedService, IAsyncDisposable
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            if (_connection.State != HubConnectionState.Connected)
+            // The circuit breaker + retry pipeline wraps the SignalR invocation so that:
+            //  - transient connection drops are retried with exponential backoff
+            //  - a persistently unavailable hub opens the circuit for fast-fails, reducing
+            //    latency cascades into the /api/buzz endpoint and BuzzQueueService
+            await _pipeline.ExecuteAsync(async innerCt =>
             {
-                await _startLock.WaitAsync(ct);
-                try
+                if (_connection.State != HubConnectionState.Connected)
                 {
-                    // Re-check inside the lock to avoid a double-start race.
-                    if (_connection.State != HubConnectionState.Connected)
+                    await _startLock.WaitAsync(innerCt);
+                    try
                     {
-                        _logger.LogInformation("BuzzHubClient is not connected (state={State}); attempting to start.", _connection.State);
-                        await _connection.StartAsync(ct);
+                        // Re-check inside the lock to avoid a double-start race.
+                        if (_connection.State != HubConnectionState.Connected)
+                        {
+                            _logger.LogInformation("BuzzHubClient is not connected (state={State}); attempting to start.", _connection.State);
+                            await _connection.StartAsync(innerCt);
+                        }
+                    }
+                    finally
+                    {
+                        _startLock.Release();
                     }
                 }
-                finally
-                {
-                    _startLock.Release();
-                }
-            }
 
-            await _connection.InvokeAsync("Buzz", teamName, buzzedAtUtcMs, ct);
+                await _connection.InvokeAsync("Buzz", teamName, buzzedAtUtcMs, innerCt);
+            }, ct);
         }
         finally
         {
