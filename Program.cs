@@ -181,7 +181,9 @@ static async Task ApplySyntheticFailureAsync(
     ILogger logger,
     bool chaosEnabled)
 {
-    var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant();
+    var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant()
+        .Replace("\r", string.Empty, StringComparison.Ordinal)
+        .Replace("\n", string.Empty, StringComparison.Ordinal);
     if (string.IsNullOrEmpty(mode))
     {
         return;
