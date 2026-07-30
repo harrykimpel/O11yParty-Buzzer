@@ -57,17 +57,21 @@ cookies/session to protect.
 
 | Service | Lifetime | Role |
 | --- | --- | --- |
-| `BuzzHubClient` | Singleton `IHostedService` | Owns **one** SignalR connection to the game's `BuzzHub` (`/hubs/buzz`), opened at app startup and held open for the process's lifetime (`.WithAutomaticReconnect()`). Every `/api/buzz` call reuses it via `SendBuzzAsync`, which lazily reconnects only if it finds the connection not `Connected`. If `BuzzHub:Url` is blank, it stays idle (dev/local mode) and `SendBuzzAsync` throws. |
+| `BuzzHubClient` | Singleton `IHostedService` | Owns **one** SignalR connection to the game's `BuzzHub` (`/hubs/buzz`), opened at app startup and held open for the process's lifetime (`.WithAutomaticReconnect()`). Every `/api/buzz` call reuses it via `SendBuzzAsync`, which lazily reconnects only if it finds the connection not `Connected`. If `BuzzHub:Url` is blank, it stays idle (dev/local mode) and `SendBuzzAsync` throws. `SendBuzzAsync` wraps each call with a **circuit breaker** (fail fast after N consecutive failures), **retry with exponential back-off** (configurable max attempts), and a **wall-clock timeout** to prevent hanging under outages. |
 | `INewRelicEventPublisher` / `NewRelicEventPublisher` | Transient + `HttpClient` | Posts buzz/lead-capture events as JSON to the New Relic Insights Collector (`US: insights-collector.newrelic.com`, `EU: insights-collector.eu01.nr-data.net`, selected by `NewRelic:Region`). Dashboards only — never on the critical path. |
 
 ## Configuration
 
 `BuzzHubOptions` (section `BuzzHub`):
 
-| Key | Notes |
-| --- | --- |
-| `Url` | Full URL to the game's hub endpoint, e.g. `https://<game-host>/hubs/buzz`. Blank → `BuzzHubClient` stays idle. |
-| `SharedSecret` | Sent as the SignalR access token; must match the game's `BuzzHub:SharedSecret` exactly or the game's hub rejects the connection. |
+| Key | Default | Notes |
+| --- | --- | --- |
+| `Url` | _(required)_ | Full URL to the game's hub endpoint, e.g. `https://<game-host>/hubs/buzz`. Blank → `BuzzHubClient` stays idle. |
+| `SharedSecret` | _(required)_ | Sent as the SignalR access token; must match the game's `BuzzHub:SharedSecret` exactly or the game's hub rejects the connection. |
+| `MaxRetryAttempts` | `2` | Additional retry attempts after the first failure inside a single `SendBuzzAsync` call. Retries use exponential back-off (200 ms × 2^attempt). Set to `0` for no retries. |
+| `CircuitBreakerThreshold` | `5` | Consecutive failures required to open the circuit breaker. While open, buzzes are rejected immediately with a 503 instead of waiting for a network timeout. |
+| `CircuitBreakerBreakDurationSeconds` | `30` | Seconds to keep the circuit breaker open before allowing a single probe attempt (half-open state). |
+| `SendTimeoutSeconds` | `10` | Wall-clock timeout (seconds) for a single `SendBuzzAsync` call, including all retry attempts. `0` disables the timeout (not recommended). |
 
 `NewRelicOptions` (section `NewRelic`):
 
