@@ -195,7 +195,9 @@ static async Task ApplySyntheticFailureAsync(
     ILogger logger,
     IWebHostEnvironment env)
 {
-    var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant();
+    // Sanitize to alphanumeric/hyphen only — prevents log-forging if an attacker
+    // passes a value containing newlines or control characters.
+    var mode = Regex.Replace((chaos ?? string.Empty).Trim().ToLowerInvariant(), @"[^a-z0-9\-]", "");
     if (string.IsNullOrEmpty(mode))
     {
         return;
