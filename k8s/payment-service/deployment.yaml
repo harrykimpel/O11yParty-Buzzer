@@ -1,0 +1,74 @@
+# Payment Service Deployment for OpenTelemetry Demo (Astroshop)
+#
+# Resolves: DNS resolution failure causing 100% error rate on checkout/PaymentService/Charge
+# Root cause: payment service pods not running → K8s Service has zero endpoints →
+#             checkout's gRPC name resolver returns "zero addresses"
+#
+# Apply with:
+#   kubectl apply -f k8s/payment-service/deployment.yaml -n otel-demo
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: otel-demo
+  labels:
+    app: payment
+    app.kubernetes.io/name: payment
+    app.kubernetes.io/component: payment-service
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment
+  template:
+    metadata:
+      labels:
+        app: payment
+        app.kubernetes.io/name: payment
+        app.kubernetes.io/component: payment-service
+        app.kubernetes.io/part-of: opentelemetry-demo
+    spec:
+      containers:
+        - name: payment
+          image: ghcr.io/open-telemetry/demo:latest-paymentservice
+          ports:
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+          env:
+            - name: PAYMENT_SERVICE_PORT
+              value: "50051"
+            - name: OTEL_SERVICE_NAME
+              value: "payment"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otelcol:4317"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=payment,service.namespace=otel-demo"
+          # Readiness probe: marks the pod as ready to receive traffic only once
+          # the gRPC server is listening. This prevents the K8s Service from routing
+          # to pods that are still starting up, which would produce the same
+          # "zero addresses" error seen on the checkout side.
+          readinessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+          # Liveness probe: restarts the container automatically if the gRPC server
+          # becomes unresponsive, preventing silent hangs from causing sustained outages.
+          livenessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      restartPolicy: Always

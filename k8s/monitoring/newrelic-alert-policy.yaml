@@ -1,0 +1,76 @@
+# New Relic Alert Policy — Payment Service Availability
+#
+# These NRQL alert conditions complement the existing "Astroshop - Checkout service
+# High Throughput" policy by proactively alerting on payment service health *before*
+# the checkout error rate reaches 100%.
+#
+# These definitions follow the New Relic Terraform provider schema (v3). Apply via:
+#   terraform apply  (if managing NR config as code)
+# or create manually in the New Relic UI using the NRQL queries below.
+#
+# Account: NR_DevRel (7977095)
+# Alert Policy ID (existing, extend it): 7536558
+
+# --------------------------------------------------------------------------
+# Condition 1: PaymentService/Charge error rate > 5 %
+# Fires CRITICAL when more than 5 % of PaymentService/Charge spans report an
+# ERROR status, evaluated over a 5-minute sliding window.
+# --------------------------------------------------------------------------
+# NRQL:
+#   FROM Span
+#   SELECT filter(count(*), WHERE otel.status_code = 'ERROR') / count(*) * 100
+#   WHERE entity.name = 'checkout'
+#     AND name = 'oteldemo.PaymentService/Charge'
+#   SINCE 5 minutes ago
+#
+# Threshold: CRITICAL when value > 5 for at least 5 minutes
+# Threshold: WARNING  when value > 1 for at least 5 minutes
+
+# --------------------------------------------------------------------------
+# Condition 2: PaymentService throughput drops to zero
+# Fires WARNING when NO PaymentService/Charge spans are recorded in a 10-minute
+# window, indicating the service may be completely unreachable.
+# --------------------------------------------------------------------------
+# NRQL:
+#   FROM Span
+#   SELECT count(*)
+#   WHERE entity.name = 'checkout'
+#     AND name = 'oteldemo.PaymentService/Charge'
+#   SINCE 10 minutes ago
+#
+# Threshold: WARNING when value = 0 for at least 10 minutes
+
+# --------------------------------------------------------------------------
+# Condition 3: Checkout PlaceOrder error rate > 5 %
+# End-to-end guard: fires CRITICAL if the overall PlaceOrder success rate
+# drops below 95 %, regardless of which downstream dependency is failing.
+# --------------------------------------------------------------------------
+# NRQL:
+#   FROM Span
+#   SELECT filter(count(*), WHERE otel.status_code = 'ERROR') / count(*) * 100
+#   WHERE entity.name = 'checkout'
+#     AND name = 'oteldemo.CheckoutService/PlaceOrder'
+#   SINCE 5 minutes ago
+#
+# Threshold: CRITICAL when value > 5 for at least 5 minutes
+# Threshold: WARNING  when value > 1 for at least 5 minutes
+
+# --------------------------------------------------------------------------
+# Verification NRQL (run after applying the remediation)
+# --------------------------------------------------------------------------
+# Monitor PaymentService/Charge status codes returning to OK:
+#
+#   FROM Span SELECT count(*)
+#   WHERE entity.guid = 'Nzk3NzA5NXxFWFR8U0VSVklDRXwtNjA1OTUyMTEwODM4NTU4MzQyOQ'
+#     AND name = 'oteldemo.PaymentService/Charge'
+#   FACET otel.status_code
+#   TIMESERIES 1 minute
+#   SINCE 30 minutes ago
+#
+# Checkout success rate:
+#
+#   FROM Span
+#   SELECT filter(count(*), WHERE otel.status_code = 'OK') / count(*) * 100
+#     AS 'Success Rate %'
+#   WHERE entity.guid = 'Nzk3NzA5NXxFWFR8U0VSVklDRXwtNjA1OTUyMTEwODM4NTU4MzQyOQ'
+#   SINCE 5 minutes ago
