@@ -1,8 +1,12 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
+using Polly;
+using Polly.CircuitBreaker;
+using Polly.Retry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,10 +20,63 @@ builder.Services.AddRazorComponents();
 builder.Services.Configure<NewRelicOptions>(builder.Configuration.GetSection(NewRelicOptions.SectionName));
 builder.Services.AddHttpClient<INewRelicEventPublisher, NewRelicEventPublisher>();
 
+// Resilience pipeline for the BuzzHub SignalR connection.
+// Circuit breaker + retry protect against cascading failures when the game hub is
+// temporarily unreachable (mirrors the "Billing → Notification Service" outage pattern
+// described in the incident report): retry twice with exponential backoff for transient
+// errors, then open the circuit for 15 s after sustained failures, enabling fast-fails
+// and allowing BuzzQueueService to absorb in-flight buzzes without waiting.
+builder.Services.AddResiliencePipeline("buzz-hub", (pipelineBuilder, ctx) =>
+{
+    var cbLogger = ctx.ServiceProvider.GetRequiredService<ILogger<BuzzHubClient>>();
+
+    pipelineBuilder
+        .AddRetry(new RetryStrategyOptions
+        {
+            MaxRetryAttempts = 2,
+            Delay = TimeSpan.FromMilliseconds(500),
+            BackoffType = DelayBackoffType.Exponential,
+            UseJitter = true,
+            ShouldHandle = new PredicateBuilder()
+                .Handle<Exception>(ex => ex is not InvalidOperationException)
+        })
+        .AddCircuitBreaker(new CircuitBreakerStrategyOptions
+        {
+            FailureRatio = 0.5,
+            MinimumThroughput = 5,
+            SamplingDuration = TimeSpan.FromSeconds(30),
+            BreakDuration = TimeSpan.FromSeconds(15),
+            ShouldHandle = new PredicateBuilder()
+                .Handle<Exception>(ex => ex is not InvalidOperationException),
+            OnOpened = _ =>
+            {
+                cbLogger.LogWarning("BuzzHub circuit breaker opened — hub unreachable. Buzzes will be queued for retry.");
+                NewRelic.Api.Agent.NewRelic.RecordMetric("Custom/CircuitBreaker/BuzzHub/Opened", 1);
+                return ValueTask.CompletedTask;
+            },
+            OnClosed = _ =>
+            {
+                cbLogger.LogInformation("BuzzHub circuit breaker closed — hub is reachable again.");
+                NewRelic.Api.Agent.NewRelic.RecordMetric("Custom/CircuitBreaker/BuzzHub/Closed", 1);
+                return ValueTask.CompletedTask;
+            }
+        });
+});
+
 // SignalR hub client — singleton owned connection to the game hub
 builder.Services.Configure<BuzzHubOptions>(builder.Configuration.GetSection(BuzzHubOptions.SectionName));
 builder.Services.AddSingleton<BuzzHubClient>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<BuzzHubClient>());
+
+// Fallback buzz delivery queue — graceful degradation when the hub is temporarily down.
+// The /api/buzz endpoint enqueues failed deliveries here; BuzzQueueService retries
+// asynchronously with exponential backoff so the endpoint always returns HTTP 200.
+builder.Services.AddSingleton<BuzzQueueService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BuzzQueueService>());
+
+// Health checks — exposes /health endpoint for readiness/liveness probes
+builder.Services.AddHealthChecks()
+    .AddCheck<BuzzHubHealthCheck>("buzz-hub");
 
 // Trust forwarded headers from App Runner's reverse proxy
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -48,6 +105,10 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
+
+// Health endpoint for readiness/liveness probes and dependency monitoring.
+// Reports BuzzHub connection state and queue depth as structured health data.
+app.MapHealthChecks("/health");
 
 // --- Stateless buzz/lead API ------------------------------------------------
 // Called by wwwroot/buzzer.js via fetch(). DisableAntiforgery: public, no-auth
@@ -103,11 +164,14 @@ app.MapPost("/api/buzz", async Task<IResult> (
     [FromQuery] string? chaos,
     [FromQuery] int? latencyMs,
     BuzzHubClient buzzHubClient,
+    BuzzQueueService buzzQueueService,
     IServiceScopeFactory scopeFactory,
     ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
-    var teamName = req.TeamName?.Trim() ?? string.Empty;
+    // Sanitize user-supplied input: strip all line-ending characters to prevent log-forging
+    // (an attacker could embed \n in their team name to inject fake log entries).
+    var teamName = (req.TeamName?.Trim() ?? string.Empty).ReplaceLineEndings(" ").Trim();
     if (string.IsNullOrWhiteSpace(teamName))
     {
         return Results.BadRequest(new ApiError("Enter a team name before buzzing."));
@@ -130,18 +194,8 @@ app.MapPost("/api/buzz", async Task<IResult> (
     transaction.AddCustomAttribute("TeamName", teamName);
 
     var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    // Critical path: real-time delivery via SignalR
-    try
-    {
-        await buzzHubClient.SendBuzzAsync(teamName, ts);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "SignalR SendBuzzAsync failed for team {TeamName}", teamName);
-        return Results.Json(new ApiError("Buzzer is temporarily offline, try again."), statusCode: StatusCodes.Status502BadGateway);
-    }
 
-    // Fire-and-forget: publish to New Relic for dashboards only — failure must never fail the request.
+    // Fire-and-forget: publish to New Relic for dashboards — happens regardless of SignalR outcome.
     // INewRelicEventPublisher is registered via AddHttpClient (transient/scoped), so we must not
     // capture the request-scoped instance in a detached task. Instead create a fresh DI scope.
     _ = Task.Run(async () =>
@@ -155,9 +209,28 @@ app.MapPost("/api/buzz", async Task<IResult> (
         catch (Exception ex)
         {
             var bgLogger = loggerFactory.CreateLogger("BuzzApi.NewRelicPublish");
-            bgLogger.LogWarning(ex, "Fire-and-forget New Relic publish failed for team {TeamName} — buzz already delivered via SignalR.", teamName);
+            bgLogger.LogWarning(ex, "Fire-and-forget New Relic publish failed for team {TeamName}.", teamName);
         }
     });
+
+    // Critical path: real-time delivery via SignalR (protected by circuit breaker + retry).
+    // Graceful degradation: when the hub is down the circuit breaker fast-fails and the buzz
+    // is queued for retry by BuzzQueueService — the request still succeeds (HTTP 200) so the
+    // attendee is not blocked and the billing (buzz) action is recorded even if the notification
+    // delivery to the game temporarily fails.
+    try
+    {
+        await buzzHubClient.SendBuzzAsync(teamName, ts);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex,
+            "SignalR SendBuzzAsync failed for team {TeamName} — queuing for retry (graceful degradation).",
+            teamName);
+        transaction.AddCustomAttribute("buzzQueued", true);
+        buzzQueueService.TryEnqueue(new BuzzRecord(teamName, ts));
+        NewRelic.Api.Agent.NewRelic.RecordMetric("Custom/BuzzQueue/Enqueued", 1);
+    }
 
     return Results.Ok(new BuzzResponse($"Buzz received for {teamName}."));
 }).DisableAntiforgery();
