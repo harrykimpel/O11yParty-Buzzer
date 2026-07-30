@@ -169,7 +169,9 @@ app.MapPost("/api/buzz", async Task<IResult> (
     ILoggerFactory loggerFactory) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
-    var teamName = req.TeamName?.Trim() ?? string.Empty;
+    // Sanitize user-supplied input: strip all line-ending characters to prevent log-forging
+    // (an attacker could embed \n in their team name to inject fake log entries).
+    var teamName = (req.TeamName?.Trim() ?? string.Empty).ReplaceLineEndings(" ").Trim();
     if (string.IsNullOrWhiteSpace(teamName))
     {
         return Results.BadRequest(new ApiError("Enter a team name before buzzing."));
