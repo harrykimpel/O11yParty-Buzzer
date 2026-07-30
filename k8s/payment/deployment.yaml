@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: otel-demo
+  labels:
+    app: payment
+    app.kubernetes.io/name: payment
+    app.kubernetes.io/part-of: astroshop
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment
+  template:
+    metadata:
+      labels:
+        app: payment
+        app.kubernetes.io/name: payment
+        app.kubernetes.io/part-of: astroshop
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: payment
+          image: ghcr.io/open-telemetry/demo/payment:latest
+          ports:
+            - name: grpc
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PAYMENT_SERVICE_PORT
+              value: "8080"
+            - name: OTEL_SERVICE_NAME
+              value: "payment"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          # Liveness probe: restart the container if it is deadlocked or unresponsive.
+          # Uses the standard gRPC health protocol; falls back to exec grpc_health_probe
+          # if the Kubernetes version pre-dates native gRPC probe support (<1.24).
+          livenessProbe:
+            grpc:
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          # Readiness probe: only route traffic once the service is ready to handle requests.
+          # This prevents the "name resolver error: produced zero addresses" by ensuring
+          # the Endpoints object is populated only when a pod is genuinely ready.
+          readinessProbe:
+            grpc:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          # Startup probe: give the service enough time to initialise before liveness kicks in.
+          # Without this, a slow-starting pod can be killed in a restart loop before it ever
+          # becomes healthy, which produces exactly the "zero addresses" DNS error.
+          startupProbe:
+            grpc:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+            timeoutSeconds: 5
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: payment
+                topologyKey: kubernetes.io/hostname
