@@ -135,7 +135,9 @@ app.MapPost("/api/buzz", async Task<IResult> (
     }
     else if (!string.IsNullOrWhiteSpace(chaos))
     {
-        logger.LogWarning("Synthetic failure mode requested via ?chaos={FailureMode} but suppressed in Production environment", chaos);
+        // Sanitize user-supplied value before logging to prevent log-forging (OWASP CWE-117).
+        var safeMode = chaos.Replace('\r', '_').Replace('\n', '_');
+        logger.LogWarning("Synthetic failure mode requested via ?chaos={FailureMode} but suppressed in Production environment", safeMode);
     }
     transaction.AddCustomAttribute("TeamName", teamName);
 
