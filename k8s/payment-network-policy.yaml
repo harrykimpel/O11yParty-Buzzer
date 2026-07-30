@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payment-allow-checkout-ingress
+  namespace: otel-demo
+  labels:
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: payment
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow gRPC traffic from the checkout service on port 8080
+    - from:
+        - podSelector:
+            matchLabels:
+              app: checkout
+      ports:
+        - port: 8080
+          protocol: TCP
+    # Allow gRPC health checks from kube-system (kubelet probes)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 8080
+          protocol: TCP

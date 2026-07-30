@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment
+  namespace: otel-demo
+  labels:
+    app: payment
+    app.kubernetes.io/name: payment
+    app.kubernetes.io/component: payment
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  # ClusterIP ensures stable DNS: payment.otel-demo.svc.cluster.local resolves
+  # to a virtual IP that load-balances across healthy pod endpoints.
+  # If the selector matches zero pods the DNS entry still exists but the endpoint
+  # slice is empty — clients receive "produced zero addresses" from gRPC's name
+  # resolver. Readiness probes on the Deployment keep unhealthy pods out of the
+  # endpoint slice automatically.
+  type: ClusterIP
+  selector:
+    app: payment
+  ports:
+    - name: grpc
+      port: 8080
+      targetPort: grpc
+      protocol: TCP
