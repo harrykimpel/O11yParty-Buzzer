@@ -176,7 +176,8 @@ static async Task ApplySyntheticFailureAsync(
     ILogger logger,
     bool isProduction)
 {
-    var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant();
+    // Sanitize user-supplied value: strip control characters before any use (logging, attributes, switch)
+    var mode = Regex.Replace((chaos ?? string.Empty).Trim().ToLowerInvariant(), @"[\r\n\t\x00-\x1f\x7f]", string.Empty);
     if (string.IsNullOrEmpty(mode))
     {
         return;
