@@ -104,7 +104,8 @@ app.MapPost("/api/buzz", async Task<IResult> (
     [FromQuery] int? latencyMs,
     BuzzHubClient buzzHubClient,
     IServiceScopeFactory scopeFactory,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IHostEnvironment env) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
     var teamName = req.TeamName?.Trim() ?? string.Empty;
@@ -115,17 +116,26 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     NewRelic.Api.Agent.ITransaction transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
 
-    try
+    // Synthetic failure injection is intentionally disabled in Production to prevent
+    // demo/test chaos modes from triggering real HTTP 500 errors and alerts.
+    if (!env.IsProduction())
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        try
+        {
+            await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        }
+        catch (NewRelicConfigurationException)
+        {
+            return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (Exception ex)
+        {
+            return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
-    catch (NewRelicConfigurationException)
+    else if (!string.IsNullOrWhiteSpace(chaos))
     {
-        return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
+        logger.LogWarning("Synthetic failure mode requested via ?chaos={FailureMode} but suppressed in Production environment", chaos);
     }
     transaction.AddCustomAttribute("TeamName", teamName);
 
