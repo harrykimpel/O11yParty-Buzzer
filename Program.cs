@@ -49,6 +49,17 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
 
+// --- Health check -------------------------------------------------------
+// Returns 200 OK when the SignalR hub connection is healthy, 503 otherwise.
+// Useful for load-balancer/readiness probes and observability dashboards.
+app.MapGet("/health", (BuzzHubClient buzzHubClient) =>
+{
+    var status = buzzHubClient.GetHealthStatus();
+    return status.IsHealthy
+        ? Results.Ok(status)
+        : Results.Json(status, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
+
 // --- Stateless buzz/lead API ------------------------------------------------
 // Called by wwwroot/buzzer.js via fetch(). DisableAntiforgery: public, no-auth
 // kiosk-style endpoints posting JSON (no cookies/session to protect).
@@ -134,6 +145,11 @@ app.MapPost("/api/buzz", async Task<IResult> (
     try
     {
         await buzzHubClient.SendBuzzAsync(teamName, ts);
+    }
+    catch (CircuitBreakerOpenException ex)
+    {
+        logger.LogWarning(ex, "Circuit breaker open for team {TeamName}", teamName?.Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' '));
+        return Results.Json(new ApiError("Buzzer is temporarily offline — circuit breaker open, try again shortly."), statusCode: StatusCodes.Status503ServiceUnavailable);
     }
     catch (Exception ex)
     {
