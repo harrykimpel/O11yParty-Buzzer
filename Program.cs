@@ -31,6 +31,17 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 var app = builder.Build();
 
+// Log whether synthetic chaos modes are enabled so it's visible in production logs.
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+if (app.Environment.IsProduction())
+{
+    startupLogger.LogInformation("Synthetic chaos modes: DISABLED (production environment — ?chaos parameter will be ignored)");
+}
+else
+{
+    startupLogger.LogWarning("Synthetic chaos modes: ENABLED (non-production environment '{EnvironmentName}' — ?chaos=latency|exception|random|timeout will inject failures)", app.Environment.EnvironmentName);
+}
+
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
 
@@ -104,7 +115,8 @@ app.MapPost("/api/buzz", async Task<IResult> (
     [FromQuery] int? latencyMs,
     BuzzHubClient buzzHubClient,
     IServiceScopeFactory scopeFactory,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IWebHostEnvironment env) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
     var teamName = req.TeamName?.Trim() ?? string.Empty;
@@ -115,17 +127,23 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     NewRelic.Api.Agent.ITransaction transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
 
-    try
+    // Synthetic failure modes are only honoured in non-production environments.
+    // In production the ?chaos parameter is silently ignored so that demo/test
+    // traffic can never inject 500 errors into the live service.
+    if (!env.IsProduction())
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
-    }
-    catch (NewRelicConfigurationException)
-    {
-        return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
+        try
+        {
+            await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        }
+        catch (NewRelicConfigurationException)
+        {
+            return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (Exception ex)
+        {
+            return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
     transaction.AddCustomAttribute("TeamName", teamName);
 
