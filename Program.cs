@@ -31,6 +31,25 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 var app = builder.Build();
 
+// Log chaos/synthetic failure mode availability at startup so operators can
+// immediately confirm the feature state in any environment.
+{
+    var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+    if (app.Environment.IsProduction())
+    {
+        startupLogger.LogInformation(
+            "Chaos/synthetic failure modes: DISABLED (Production environment). " +
+            "Any ?chaos= query parameter will be silently ignored.");
+    }
+    else
+    {
+        startupLogger.LogWarning(
+            "Chaos/synthetic failure modes: ENABLED for environment '{Environment}'. " +
+            "These features MUST NOT be used in Production.",
+            app.Environment.EnvironmentName);
+    }
+}
+
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
 
@@ -104,7 +123,8 @@ app.MapPost("/api/buzz", async Task<IResult> (
     [FromQuery] int? latencyMs,
     BuzzHubClient buzzHubClient,
     IServiceScopeFactory scopeFactory,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IWebHostEnvironment env) =>
 {
     var logger = loggerFactory.CreateLogger("BuzzApi");
     var teamName = req.TeamName?.Trim() ?? string.Empty;
@@ -117,7 +137,7 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     try
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger, env);
     }
     catch (NewRelicConfigurationException)
     {
@@ -167,15 +187,29 @@ app.Run();
 // --- Synthetic failure modes (observability demo) ---------------------------
 // Ported verbatim from the old Home.razor.ApplySyntheticFailureAsync so the
 // New Relic failure-injection demo keeps working: ?chaos=latency|exception|random|timeout
+// Chaos modes are disabled in Production environments to prevent accidental error injection.
 static async Task ApplySyntheticFailureAsync(
     string? chaos,
     int? latencyMs,
     NewRelic.Api.Agent.ITransaction transaction,
-    ILogger logger)
+    ILogger logger,
+    IWebHostEnvironment env)
 {
-    var mode = (chaos ?? string.Empty).Trim().ToLowerInvariant();
+    // Sanitize to alphanumeric/hyphen only — prevents log-forging if an attacker
+    // passes a value containing newlines or control characters.
+    var mode = Regex.Replace((chaos ?? string.Empty).Trim().ToLowerInvariant(), @"[^a-z0-9\-]", "");
     if (string.IsNullOrEmpty(mode))
     {
+        return;
+    }
+
+    // Chaos modes must never run in Production — ignore the parameter and log a warning
+    // so any accidental request is visible in the logs without causing errors.
+    if (env.IsProduction())
+    {
+        logger.LogWarning(
+            "Synthetic failure mode '{Mode}' requested but chaos modes are disabled in Production — ignoring.",
+            mode);
         return;
     }
 
