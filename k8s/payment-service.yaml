@@ -1,0 +1,34 @@
+# Kubernetes Service for the payment service in the otel-demo namespace.
+#
+# The checkout service calls oteldemo.PaymentService/Charge over gRPC.  When
+# this Service object is absent (or its selector does not match any running
+# pods), CoreDNS still resolves the hostname but returns zero A-records,
+# which the gRPC name-resolver surfaces as:
+#
+#   rpc error: code = Unavailable desc = name resolver error:
+#     produced zero addresses
+#
+# Apply this manifest to restore DNS resolution and re-enable traffic to the
+# payment service:
+#
+#   kubectl apply -f k8s/payment-service.yaml
+#
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment
+  namespace: otel-demo
+  labels:
+    app.kubernetes.io/name: payment
+    app.kubernetes.io/component: payment
+    app.kubernetes.io/part-of: opentelemetry-demo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: payment
+    app.kubernetes.io/component: payment
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      protocol: TCP
