@@ -44,7 +44,7 @@ builder.Services.AddRateLimiter(options =>
 
         if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
         {
-            context.HttpContext.Response.Headers.RetryAfter =
+            context.HttpContext.Response.Headers["Retry-After"] =
                 Math.Max(1, (int)retryAfter.TotalSeconds)
                     .ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
