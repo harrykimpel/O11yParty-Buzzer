@@ -49,9 +49,9 @@ builder.Services.AddRateLimiter(options =>
                     .ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        await context.HttpContext.Response.WriteAsync(
-            JsonSerializer.Serialize(new ApiError("Too many requests. Please wait a moment before trying again.")),
-            cancellationToken);
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new ApiError("Too many requests. Please wait a moment before trying again."),
+            cancellationToken: cancellationToken);
     };
 
     // Sliding-window limiter for lead-capture: prevents boundary bursts at window edges.
