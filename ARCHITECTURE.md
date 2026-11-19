@@ -82,7 +82,8 @@ cookies/session to protect.
 ## Synthetic failure modes (chaos)
 
 `POST /api/buzz?chaos=<mode>` applies the failure **server-side**, so it surfaces as a real APM
-transaction error (ported from the app's original Blazor-Server implementation):
+transaction error. Modes are disabled by default and enabled in Development; set
+`Chaos:Enabled=true` only in a non-production environment to use them:
 
 | Mode | Behavior |
 | --- | --- |

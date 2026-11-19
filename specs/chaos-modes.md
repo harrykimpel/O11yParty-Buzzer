@@ -5,8 +5,18 @@ Owner: [Components/Pages/Home.razor](../Components/Pages/Home.razor)
 ## Invariants
 
 - Chaos modes are activated exclusively via the `chaos` query parameter
+- Chaos modes only execute when `Chaos:Enabled` is true; it defaults to false and should only be enabled outside production
 - Chaos modes are demo/testing features — they must not affect behavior when the parameter is absent
 - All chaos modes should add a custom attribute to the New Relic transaction for traceability
+
+### CHAOS-00: Chaos modes are disabled by default
+
+```plain
+Given: Chaos:Enabled is false or unset
+  And: URL includes a chaos query parameter
+When: attendee clicks BUZZ
+Then: the chaos mode is ignored and the buzz proceeds normally
+```
 
 ## Scenarios
 
