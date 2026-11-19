@@ -119,7 +119,9 @@ Then browse to the URL shown in the console.
 ## Synthetic Failure Injection
 
 Append `?chaos=<mode>` to the page URL. The buzzer forwards it to `POST /api/buzz`, which applies
-the failure server-side (so it surfaces as a real APM transaction error):
+the failure server-side (so it surfaces as a real APM transaction error). Chaos modes are disabled
+by default and enabled in Development; set `Chaos:Enabled=true` only in a non-production environment
+to use them:
 
 | Mode        | Behavior                                                                                    |
 |-------------|---------------------------------------------------------------------------------------------|
