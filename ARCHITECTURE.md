@@ -81,13 +81,14 @@ cookies/session to protect.
 
 ## Synthetic failure modes (chaos)
 
-`POST /api/buzz?chaos=<mode>` applies the failure **server-side**, so it surfaces as a real APM
+`POST /api/buzz?chaos=<mode>` applies the failure **server-side** when
+`SyntheticFailures:Enabled` is `true` (disabled by default), so it surfaces as a real APM
 transaction error (ported from the app's original Blazor-Server implementation):
 
 | Mode | Behavior |
 | --- | --- |
 | `latency` | Adds an artificial delay before the buzz (default 3000 ms; override with `&latencyMs=<ms>`) |
-| `exception` | Throws an unhandled exception on every buzz |
+| `exception` | Returns HTTP 500 on every buzz |
 | `random` | Fails ~50% of buzzes at random |
 | `timeout` | Simulates a long-running request that times out after 35 s |
 
