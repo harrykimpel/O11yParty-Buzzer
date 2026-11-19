@@ -5,6 +5,7 @@ using O11yPartyBuzzer.Components;
 using O11yPartyBuzzer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var syntheticFailuresEnabled = builder.Configuration.GetValue<bool>("SyntheticFailures:Enabled");
 
 // Add services to the container.
 // Static server rendering only — NO interactive server components. The buzzer used
@@ -117,7 +118,10 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     try
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        if (syntheticFailuresEnabled)
+        {
+            await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        }
     }
     catch (NewRelicConfigurationException)
     {

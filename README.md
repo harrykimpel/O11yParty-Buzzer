@@ -118,13 +118,15 @@ Then browse to the URL shown in the console.
 
 ## Synthetic Failure Injection
 
-Append `?chaos=<mode>` to the page URL. The buzzer forwards it to `POST /api/buzz`, which applies
-the failure server-side (so it surfaces as a real APM transaction error):
+Synthetic failure injection is disabled by default. To use it in an isolated demo or test
+environment, set `SyntheticFailures:Enabled` to `true` (or the environment variable
+`SyntheticFailures__Enabled=true`). Then append `?chaos=<mode>` to the page URL. The buzzer
+forwards it to `POST /api/buzz`, which applies the failure server-side:
 
 | Mode        | Behavior                                                                                    |
 |-------------|---------------------------------------------------------------------------------------------|
 | `latency`   | Adds an artificial delay before the buzz (default 3000 ms; override with `&latencyMs=<ms>`) |
-| `exception` | Throws an unhandled exception on every buzz                                                 |
+| `exception` | Returns an HTTP 500 on every buzz                                                           |
 | `random`    | Fails ~50% of buzzes at random                                                              |
 | `timeout`   | Simulates a long-running request that times out after 35 s                                  |
 
