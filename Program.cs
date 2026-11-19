@@ -102,6 +102,7 @@ app.MapPost("/api/buzz", async Task<IResult> (
     BuzzRequest req,
     [FromQuery] string? chaos,
     [FromQuery] int? latencyMs,
+    IConfiguration configuration,
     BuzzHubClient buzzHubClient,
     IServiceScopeFactory scopeFactory,
     ILoggerFactory loggerFactory) =>
@@ -117,7 +118,10 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     try
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        if (configuration.GetValue<bool>("SyntheticFailureModes:Enabled"))
+        {
+            await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        }
     }
     catch (NewRelicConfigurationException)
     {
