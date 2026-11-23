@@ -1,10 +1,11 @@
 # Spec: Chaos Modes
 
-Owner: [Components/Pages/Home.razor](../Components/Pages/Home.razor)
+Owner: [`POST /api/buzz`](../Program.cs)
 
 ## Invariants
 
-- Chaos modes are activated exclusively via the `chaos` query parameter
+- Chaos modes require both `SyntheticFailures:Enabled = true` and the `chaos` query parameter
+- Synthetic failures are disabled by default outside Development
 - Chaos modes are demo/testing features — they must not affect behavior when the parameter is absent
 - All chaos modes should add a custom attribute to the New Relic transaction for traceability
 

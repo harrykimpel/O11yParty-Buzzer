@@ -30,6 +30,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 var app = builder.Build();
+var syntheticFailuresEnabled = app.Configuration.GetValue<bool>("SyntheticFailures:Enabled");
 
 // Must be first so all subsequent middleware sees the correct scheme/IP
 app.UseForwardedHeaders();
@@ -115,17 +116,24 @@ app.MapPost("/api/buzz", async Task<IResult> (
 
     NewRelic.Api.Agent.ITransaction transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
 
-    try
+    if (syntheticFailuresEnabled)
     {
-        await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        try
+        {
+            await ApplySyntheticFailureAsync(chaos, latencyMs, transaction, logger);
+        }
+        catch (NewRelicConfigurationException)
+        {
+            return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (Exception ex)
+        {
+            return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
-    catch (NewRelicConfigurationException)
+    else if (!string.IsNullOrWhiteSpace(chaos))
     {
-        return Results.Json(new ApiError("Buzz service is not configured. Please contact the event team."), statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-    catch (Exception ex)
-    {
-        return Results.Json(new ApiError($"Could not send buzz event: {ex.Message}"), statusCode: StatusCodes.Status500InternalServerError);
+        logger.LogWarning("Synthetic failure mode request ignored because SyntheticFailures:Enabled is false.");
     }
     transaction.AddCustomAttribute("TeamName", teamName);
 
