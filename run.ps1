@@ -1,0 +1,3 @@
+$env:CORECLR_ENABLE_PROFILING=1; $env:CORECLR_PROFILER="{36032161-FFC0-4B61-B559-F6C5D41BAE5A}"; $env:CORECLR_NEWRELIC_HOME="C:\ProgramData\New Relic\.NET Agent\"; $env:NEWRELIC_INSTALL_PATH="C:\Program Files\New Relic\.NET Agent\";
+
+dotnet run
